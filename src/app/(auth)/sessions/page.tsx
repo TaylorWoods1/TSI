@@ -37,6 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  // Deep copy the initial data to prevent mutation issues with shared mock data
   const [sessions, setSessions] = useState(() => JSON.parse(JSON.stringify(initialMockSessions)));
 
   // State for the edit dialog

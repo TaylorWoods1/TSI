@@ -26,8 +26,14 @@ export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: Dele
     onClose();
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      onClose();
+    }
+  };
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AlertDialog open={isOpen} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -37,7 +43,7 @@ export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: Dele
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} variant="destructive">
+          <AlertDialogAction onClick={handleConfirm} variant="destructive">
             Yes, delete it
           </AlertDialogAction>
         </AlertDialogFooter>

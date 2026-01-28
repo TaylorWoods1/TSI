@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,9 +29,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { EditSessionDialog } from '@/components/edit-session-dialog';
+import { DeleteSessionAlert } from '@/components/delete-session-alert';
+import type { IdeationSession } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SessionsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  // We use local state to demonstrate mutation, in a real app this would be a server action + revalidation
+  const [sessions, setSessions] = useState(mockSessions);
+  const [editingSession, setEditingSession] = useState<IdeationSession | null>(null);
+  const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -45,6 +55,52 @@ export default function SessionsPage() {
     }
   };
 
+  const handleSaveSession = (updatedSession: IdeationSession) => {
+    const isNew = !sessions.some(s => s.sessionId === updatedSession.sessionId);
+    if (isNew) {
+        setSessions(prev => [updatedSession, ...prev]);
+        mockSessions.unshift(updatedSession);
+    } else {
+        setSessions(prev => prev.map(s => s.sessionId === updatedSession.sessionId ? updatedSession : s));
+        const index = mockSessions.findIndex(s => s.sessionId === updatedSession.sessionId);
+        if (index !== -1) {
+            mockSessions[index] = updatedSession;
+        }
+    }
+    toast({
+        title: isNew ? "Session Created" : "Session Updated",
+        description: `The "${updatedSession.name}" session has been saved.`,
+    });
+    setEditingSession(null);
+  };
+
+  const handleConfirmDelete = (sessionId: string) => {
+    const sessionName = sessions.find(s => s.sessionId === sessionId)?.name;
+    setSessions(prev => prev.filter(s => s.sessionId !== sessionId));
+    const indexToDelete = mockSessions.findIndex(s => s.sessionId === sessionId);
+    if(indexToDelete > -1) {
+        mockSessions.splice(indexToDelete, 1);
+    }
+    toast({
+        title: "Session Deleted",
+        description: `The "${sessionName}" session has been removed.`,
+        variant: "destructive"
+    });
+    setDeletingSession(null);
+  };
+
+  const handleCreateSession = () => {
+    const newSession: IdeationSession = {
+      sessionId: `session-${Date.now()}`,
+      name: 'New Session',
+      description: 'A new ideation session.',
+      sessionDate: new Date().toISOString(),
+      selectedIdeaIds: [],
+      status: 'planned',
+    };
+    setEditingSession(newSession);
+  };
+
   return (
     <div className="container mx-auto p-0">
       <PageHeader
@@ -52,14 +108,14 @@ export default function SessionsPage() {
         description="Explore upcoming, active, and past innovation sessions."
       >
         {user?.role === 'administrator' && (
-          <Button>
+          <Button onClick={handleCreateSession}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Create Session
           </Button>
         )}
       </PageHeader>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {mockSessions.map((session) => (
+        {sessions.map((session) => (
           <Card key={session.sessionId}>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -84,8 +140,8 @@ export default function SessionsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem onClick={() => setEditingSession(session)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setDeletingSession(session)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -120,6 +176,20 @@ export default function SessionsPage() {
           </Card>
         ))}
       </div>
+
+       <EditSessionDialog
+        session={editingSession}
+        isOpen={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={handleSaveSession}
+      />
+      
+      <DeleteSessionAlert
+        session={deletingSession}
+        isOpen={!!deletingSession}
+        onClose={() => setDeletingSession(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

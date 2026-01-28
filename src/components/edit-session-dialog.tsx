@@ -30,19 +30,18 @@ import { cn } from '@/lib/utils';
 
 interface EditSessionDialogProps {
   session: IdeationSession | null;
+  isNew?: boolean;
   isOpen: boolean;
   onClose: () => void;
   onSave: (updatedSession: IdeationSession) => void;
 }
 
-export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSessionDialogProps) {
+export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: EditSessionDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState<Date | undefined>();
   const [status, setStatus] = useState<IdeationSession['status']>('planned');
   const { toast } = useToast();
-
-  const isNewSession = session && !mockSessions.some(s => s.sessionId === session.sessionId);
 
   useEffect(() => {
     if (session) {
@@ -74,9 +73,9 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isNewSession ? 'Create Session' : 'Edit Session'}</DialogTitle>
+          <DialogTitle>{isNew ? 'Create Session' : 'Edit Session'}</DialogTitle>
           <DialogDescription>
-            {isNewSession
+            {isNew
               ? "Provide details for the new session."
               : "Make changes to your session details here. Click save when you're done."}
           </DialogDescription>
@@ -146,6 +145,3 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
     </Dialog>
   );
 }
-
-// Need to import mockSessions to check if the session is new, this is a workaround for local state management
-import { mockSessions } from '@/lib/data';

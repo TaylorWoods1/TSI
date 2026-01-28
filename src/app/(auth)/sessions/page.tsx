@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { mockSessions } from '@/lib/data';
+import { mockSessions as initialMockSessions } from '@/lib/data';
 import { cn } from '@/lib/utils';
 import {
   ArrowUpRight,
@@ -38,9 +38,10 @@ export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   // We use local state to demonstrate mutation, in a real app this would be a server action + revalidation
-  const [sessions, setSessions] = useState(mockSessions);
+  const [sessions, setSessions] = useState(initialMockSessions);
   const [editingSession, setEditingSession] = useState<IdeationSession | null>(null);
   const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -59,28 +60,20 @@ export default function SessionsPage() {
     const isNew = !sessions.some(s => s.sessionId === updatedSession.sessionId);
     if (isNew) {
         setSessions(prev => [updatedSession, ...prev]);
-        mockSessions.unshift(updatedSession);
     } else {
         setSessions(prev => prev.map(s => s.sessionId === updatedSession.sessionId ? updatedSession : s));
-        const index = mockSessions.findIndex(s => s.sessionId === updatedSession.sessionId);
-        if (index !== -1) {
-            mockSessions[index] = updatedSession;
-        }
     }
     toast({
         title: isNew ? "Session Created" : "Session Updated",
         description: `The "${updatedSession.name}" session has been saved.`,
     });
     setEditingSession(null);
+    setIsCreatingNew(false);
   };
 
   const handleConfirmDelete = (sessionId: string) => {
     const sessionName = sessions.find(s => s.sessionId === sessionId)?.name;
     setSessions(prev => prev.filter(s => s.sessionId !== sessionId));
-    const indexToDelete = mockSessions.findIndex(s => s.sessionId === sessionId);
-    if(indexToDelete > -1) {
-        mockSessions.splice(indexToDelete, 1);
-    }
     toast({
         title: "Session Deleted",
         description: `The "${sessionName}" session has been removed.`,
@@ -98,8 +91,20 @@ export default function SessionsPage() {
       selectedIdeaIds: [],
       status: 'planned',
     };
+    setIsCreatingNew(true);
     setEditingSession(newSession);
   };
+  
+  const handleEditSession = (session: IdeationSession) => {
+    setIsCreatingNew(false);
+    setEditingSession(session);
+  };
+  
+  const handleCloseDialogs = () => {
+    setEditingSession(null);
+    setDeletingSession(null);
+    setIsCreatingNew(false);
+  }
 
   return (
     <div className="container mx-auto p-0">
@@ -140,7 +145,7 @@ export default function SessionsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setEditingSession(session)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditSession(session)}>Edit</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setDeletingSession(session)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                           Delete
                         </DropdownMenuItem>
@@ -179,8 +184,9 @@ export default function SessionsPage() {
 
        <EditSessionDialog
         session={editingSession}
+        isNew={isCreatingNew}
         isOpen={!!editingSession}
-        onClose={() => setEditingSession(null)}
+        onClose={handleCloseDialogs}
         onSave={handleSaveSession}
       />
       

@@ -1,5 +1,9 @@
+'use client';
+
+import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { mockIdeas, mockUsers } from '@/lib/data';
+import type { Idea } from '@/lib/types';
 import {
   Table,
   TableBody,
@@ -20,6 +24,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 const statusVariant = (status: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
   switch (status) {
@@ -34,11 +45,26 @@ const statusVariant = (status: string): 'default' | 'secondary' | 'outline' | 'd
   }
 };
 
+type IdeaWithUser = Idea & {
+  user: (typeof mockUsers)[0] | null;
+};
+
+
 export default function AdminIdeasPage() {
-  const ideasWithUsers = mockIdeas.map((idea) => ({
+  const [ideaToView, setIdeaToView] = useState<IdeaWithUser | null>(null);
+
+  const ideasWithUsers: IdeaWithUser[] = mockIdeas.map((idea) => ({
     ...idea,
-    user: idea.isAnonymous ? null : mockUsers.find((u) => u.userId === idea.userId),
+    user: idea.isAnonymous ? null : mockUsers.find((u) => u.userId === idea.userId) || null,
   }));
+
+  const handleViewDetails = (idea: IdeaWithUser) => {
+    setIdeaToView(idea);
+  };
+
+  const handleCloseDetails = () => {
+    setIdeaToView(null);
+  }
 
   return (
     <div className="container mx-auto p-0">
@@ -91,7 +117,9 @@ export default function AdminIdeasPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewDetails(idea)}>
+                          View Details
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>Set as Submitted</DropdownMenuItem>
                         <DropdownMenuItem>Archive</DropdownMenuItem>
@@ -104,6 +132,26 @@ export default function AdminIdeasPage() {
           </Table>
         </CardContent>
       </Card>
+      
+      <Dialog open={!!ideaToView} onOpenChange={(isOpen) => !isOpen && handleCloseDetails()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{ideaToView?.title}</DialogTitle>
+            <DialogDescription>
+              Submitted by{' '}
+              {ideaToView?.isAnonymous ? (
+                <span className="italic">Anonymous</span>
+              ) : (
+                <span className="font-medium">{`${ideaToView?.user?.firstName} ${ideaToView?.user?.lastName}`}</span>
+              )}{' '}
+              on {ideaToView && new Date(ideaToView.submissionDate).toLocaleDateString()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 text-sm text-foreground max-h-[60vh] overflow-y-auto">
+            {ideaToView?.description}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

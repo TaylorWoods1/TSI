@@ -19,6 +19,13 @@ import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface EditSessionDialogProps {
@@ -32,6 +39,7 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState<Date | undefined>();
+  const [status, setStatus] = useState<IdeationSession['status']>('planned');
   const { toast } = useToast();
 
   const isNewSession = session && !mockSessions.some(s => s.sessionId === session.sessionId);
@@ -41,6 +49,7 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
       setName(session.name);
       setDescription(session.description);
       setDate(session.sessionDate ? new Date(session.sessionDate) : new Date());
+      setStatus(session.status);
     }
   }, [session]);
 
@@ -56,7 +65,7 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
         return;
     }
 
-    onSave({ ...session, name, description, sessionDate: date.toISOString() });
+    onSave({ ...session, name, description, sessionDate: date.toISOString(), status });
   };
 
   if (!session) return null;
@@ -86,30 +95,45 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
               className="min-h-[100px]"
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="date">Session Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="date">Session Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={status} onValueChange={(value: IdeationSession['status']) => setStatus(value)}>
+                  <SelectTrigger id="status">
+                      <SelectValue placeholder="Select a status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="planned">Planned</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         <DialogFooter>

@@ -21,6 +21,11 @@ interface DeleteSessionAlertProps {
 
 export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: DeleteSessionAlertProps) {
 
+  const handleConfirm = () => {
+    onConfirm();
+    onClose();
+  }
+
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <AlertDialogContent>
@@ -31,7 +36,7 @@ export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: Dele
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} variant="destructive">
             Yes, delete it
           </AlertDialogAction>

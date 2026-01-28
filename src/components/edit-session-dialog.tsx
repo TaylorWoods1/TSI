@@ -7,6 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,7 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
     }
 
     onSave({ ...session, name, description, sessionDate: date.toISOString(), status });
+    onClose();
   };
 
   return (
@@ -134,9 +136,9 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
+           <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
           <Button onClick={handleSave}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>

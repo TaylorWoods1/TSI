@@ -40,12 +40,12 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState(() => JSON.parse(JSON.stringify(initialMockSessions)));
 
   // State for the edit dialog
-  const [editingSession, setEditingSession] = useState<IdeationSession | null>(null);
+  const [sessionToEdit, setSessionToEdit] = useState<IdeationSession | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // State for the delete alert
-  const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<IdeationSession | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const getStatusClass = (status: string) => {
@@ -72,19 +72,17 @@ export default function SessionsPage() {
         title: isNew ? "Session Created" : "Session Updated",
         description: `The "${updatedSession.name}" session has been saved.`,
     });
-    setIsEditOpen(false);
   };
 
   const handleConfirmDelete = () => {
-    if (!deletingSession) return;
-    const sessionName = sessions.find(s => s.sessionId === deletingSession.sessionId)?.name;
-    setSessions(prev => prev.filter(s => s.sessionId !== deletingSession.sessionId));
+    if (!sessionToDelete) return;
+    const sessionName = sessions.find(s => s.sessionId === sessionToDelete.sessionId)?.name;
+    setSessions(prev => prev.filter(s => s.sessionId !== sessionToDelete.sessionId));
     toast({
         title: "Session Deleted",
         description: `The "${sessionName}" session has been removed.`,
         variant: "destructive"
     });
-    setIsDeleteOpen(false);
   };
 
   const handleTriggerCreate = () => {
@@ -97,18 +95,18 @@ export default function SessionsPage() {
       status: 'planned',
     };
     setIsCreatingNew(true);
-    setEditingSession(newSession);
+    setSessionToEdit(newSession);
     setIsEditOpen(true);
   };
   
   const handleTriggerEdit = (session: IdeationSession) => {
     setIsCreatingNew(false);
-    setEditingSession(session);
+    setSessionToEdit(session);
     setIsEditOpen(true);
   };
   
   const handleTriggerDelete = (session: IdeationSession) => {
-    setDeletingSession(session);
+    setSessionToDelete(session);
     setIsDeleteOpen(true);
   };
 
@@ -189,7 +187,7 @@ export default function SessionsPage() {
       </div>
 
        <EditSessionDialog
-        session={editingSession}
+        session={sessionToEdit}
         isNew={isCreatingNew}
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -197,7 +195,7 @@ export default function SessionsPage() {
       />
       
       <DeleteSessionAlert
-        session={deletingSession}
+        session={sessionToDelete}
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}

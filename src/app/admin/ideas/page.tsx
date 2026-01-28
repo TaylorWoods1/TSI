@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -73,11 +73,7 @@ export default function AdminIdeasPage() {
         description="View, filter, and manage all ideas submitted to the platform."
       />
       <Card>
-        <CardHeader>
-          <CardTitle>All Ideas</CardTitle>
-          <CardDescription>A comprehensive list of every idea.</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Table>
             <TableHeader>
               <TableRow>

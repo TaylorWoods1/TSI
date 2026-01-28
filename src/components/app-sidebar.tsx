@@ -27,7 +27,6 @@ const employeeNavItems = [
 
 const adminNavItems = [
   { href: '/admin/ideas', icon: Boxes, label: 'Manage Ideas' },
-  { href: '/admin/sessions', icon: BrainCircuit, label: 'Manage Sessions' },
   { href: '/admin/users', icon: UserCog, label: 'Manage Users' },
 ];
 

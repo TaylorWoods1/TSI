@@ -69,7 +69,7 @@ export function AppHeader() {
             {user?.role === 'administrator' && (
               <>
                 <Link
-                  href="/admin/sessions"
+                  href="/admin/ideas"
                   className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <BrainCircuit className="h-5 w-5" />

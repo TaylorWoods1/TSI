@@ -101,14 +101,22 @@ export default function SessionsPage() {
   };
   
   const handleTriggerEdit = (session: IdeationSession) => {
-    setIsCreatingNew(false);
-    setSessionToEdit(session);
-    setIsEditOpen(true);
+    // This timeout prevents a race condition between the dropdown menu closing
+    // and the dialog opening, which was causing the UI to lock.
+    setTimeout(() => {
+        setIsCreatingNew(false);
+        setSessionToEdit(session);
+        setIsEditOpen(true);
+    }, 0);
   };
   
   const handleTriggerDelete = (session: IdeationSession) => {
-    setSessionToDelete(session);
-    setIsDeleteOpen(true);
+    // This timeout prevents a race condition between the dropdown menu closing
+    // and the dialog opening, which was causing the UI to lock.
+    setTimeout(() => {
+        setSessionToDelete(session);
+        setIsDeleteOpen(true);
+    }, 0);
   };
 
   return (

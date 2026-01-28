@@ -1,13 +1,13 @@
 'use client';
 
 import { PageHeader } from '@/components/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { mockIdeas, mockSessions, mockUseCases, mockSolutions } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Lightbulb, Plus, Workflow, Sparkles, AlertCircle, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { SessionIdeaLottery } from '@/components/session-idea-lottery';
+import { SessionIdeaPicker } from '@/components/session-idea-picker';
 import { Button } from '@/components/ui/button';
 import { useParams } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
@@ -32,7 +32,11 @@ export default function SessionDetailPage() {
   const { user } = useAuth();
   const session = mockSessions.find((s) => s.sessionId === params.sessionId);
   const selectedIdeas = mockIdeas.filter((i) => session?.selectedIdeaIds.includes(i.ideaId));
-  const submittedIdeas = mockIdeas.filter((i) => i.status === 'submitted');
+  const submittedIdeasCount = mockIdeas.filter((i) => i.status === 'submitted').length;
+
+  const isAdmin = user?.role === 'administrator';
+  const isSessionActive = session?.status === 'active';
+  const isSessionCompleted = session?.status === 'completed';
 
   if (!session) {
     return (
@@ -42,17 +46,48 @@ export default function SessionDetailPage() {
     );
   }
 
-  const isSessionActive = session.status === 'active';
+  // A component for the placeholder when no ideas are selected yet.
+  const InitialPicker = () => (
+    <Card className="text-center">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-center gap-3"><Lightbulb className="h-6 w-6 text-primary"/>Idea Selection</CardTitle>
+        <CardDescription>
+          This session hasn't started yet. Once an administrator selects the first idea, the workshopping can begin.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-lg font-semibold">{submittedIdeasCount}</p>
+        <p className="text-sm text-muted-foreground">Submitted ideas available</p>
+      </CardContent>
+      {isAdmin && !isSessionCompleted && (
+        <CardFooter className="flex-col gap-4 border-t pt-6">
+           <SessionIdeaPicker 
+            sessionId={session.sessionId}
+            buttonText="Pick First Idea"
+          />
+          <p className="text-xs text-muted-foreground">This will randomly select one submitted idea and start the session.</p>
+        </CardFooter>
+      )}
+    </Card>
+  );
 
   return (
     <div className="container mx-auto p-0">
        <PageHeader 
         title={session.name} 
         description={`${session.description} - ${new Date(session.sessionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
-       />
+       >
+        {isAdmin && isSessionActive && (
+          <SessionIdeaPicker 
+            sessionId={session.sessionId}
+            buttonText="Pick Next Idea"
+            variant="outline"
+          />
+        )}
+       </PageHeader>
 
       {selectedIdeas.length > 0 ? (
-        <Tabs defaultValue={selectedIdeas[0].ideaId} className="w-full">
+        <Tabs defaultValue={selectedIdeas[selectedIdeas.length - 1].ideaId} className="w-full">
           <TabsList className="mb-6 h-auto justify-start">
             {selectedIdeas.map(idea => (
               <TabsTrigger key={idea.ideaId} value={idea.ideaId}>
@@ -102,7 +137,7 @@ export default function SessionDetailPage() {
                             <Card key={uc.useCaseId}>
                                 <CardContent className="p-4 flex items-start justify-between gap-4">
                                     <p className="flex-1 pt-1">{uc.description}</p>
-                                    {isSessionActive && (
+                                    {!isSessionCompleted && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -123,7 +158,7 @@ export default function SessionDetailPage() {
                             </Card>
                             ))}
 
-                            {isSessionActive && (
+                            {!isSessionCompleted && (
                                 <Card className="border-dashed bg-muted/50">
                                     <CardHeader>
                                         <CardTitle className="text-lg font-semibold">Add a New Use Case</CardTitle>
@@ -161,7 +196,7 @@ export default function SessionDetailPage() {
                                 </CardHeader>
                                 <CardContent className="p-4 pt-0 flex items-start justify-between gap-4">
                                     <p className="flex-1 pt-1">{sol.description}</p>
-                                    {isSessionActive && (
+                                    {!isSessionCompleted && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -180,9 +215,9 @@ export default function SessionDetailPage() {
                                     )}
                                 </CardContent>
                             </Card>
-                        ))}
+                            ))}
 
-                            {isSessionActive && ideaUseCases.length > 0 && (
+                            {!isSessionCompleted && ideaUseCases.length > 0 && (
                                 <Card className="border-dashed bg-muted/50">
                                     <CardHeader>
                                         <CardTitle className="text-lg font-semibold">Propose a New Solution</CardTitle>
@@ -223,7 +258,7 @@ export default function SessionDetailPage() {
             );
           })}
         </Tabs>
-      ) : session.status === 'completed' ? (
+      ) : isSessionCompleted ? (
             <Alert>
                 <Lightbulb className="h-4 w-4" />
                 <AlertTitle>Session Completed</AlertTitle>
@@ -232,11 +267,7 @@ export default function SessionDetailPage() {
                 </AlertDescription>
             </Alert>
       ) : (
-         <SessionIdeaLottery
-            sessionId={session.sessionId}
-            availableIdeas={submittedIdeas}
-            isAdmin={user?.role === 'administrator'}
-         />
+         <InitialPicker />
       )}
     </div>
   );

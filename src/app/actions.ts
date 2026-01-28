@@ -1,72 +1,58 @@
 'use server';
 
-import { pickRandomIdea, PickRandomIdeaInput, PickRandomIdeaOutput } from '@/ai/flows/random-idea-selection';
+import { PickRandomIdeaInput, PickRandomIdeaOutput } from '@/ai/flows/random-idea-selection';
 import { mockIdeas, mockSessions } from '@/lib/data';
 import { revalidatePath } from 'next/cache';
 
-export async function pickRandomIdeaAction(input: PickRandomIdeaInput): Promise<PickRandomIdeaOutput> {
-  // In a real scenario, the GenAI flow would query a database.
-  // Here, we simulate it by checking our mock data.
+/**
+ * Picks a single random idea with 'submitted' status and adds it to the specified session.
+ * Updates the idea's status to 'selectedForSession' and the session's status to 'active'.
+ */
+export async function pickAndSelectRandomIdeaForSessionAction(input: PickRandomIdeaInput): Promise<PickRandomIdeaOutput> {
+  // In a real scenario, the GenAI flow might be used for more complex selection logic.
+  // For now, we simulate the core logic of picking a random available idea.
   const submittedIdeas = mockIdeas.filter(idea => idea.status === 'submitted');
   
   if (submittedIdeas.length === 0) {
     return { ideaId: null };
   }
-
-  // The Genkit flow is defined to do this, but we'll mock the logic for a predictable result.
-  // const result = await pickRandomIdea(input);
   
+  // Mocking the random selection
   const randomIndex = Math.floor(Math.random() * submittedIdeas.length);
   const randomIdea = submittedIdeas[randomIndex];
-  
-  const result: PickRandomIdeaOutput = {
-      ideaId: randomIdea.ideaId
-  }
+  const pickedIdeaId = randomIdea.ideaId;
 
-  // In a real app, we'd update the database here.
-  // e.g., db.updateIdeaStatus(result.ideaId, 'selectedForSession');
-  // and db.updateSession(input.sessionId, { selectedIdeaId: result.ideaId });
-  
-  console.log(`Picked idea ${result.ideaId} for session ${input.sessionId}`);
-  
-  revalidatePath('/admin/sessions');
-  return result;
-}
-
-
-export type SelectIdeasForSessionInput = {
-    sessionId: string;
-    ideaIds: string[];
-};
-
-export async function selectIdeasForSessionAction(input: SelectIdeasForSessionInput): Promise<{ success: boolean }> {
-  // In a real app, you would update the database here.
-  // We'll simulate this by finding the session in our mock data and updating it.
+  // --- Update state (simulating database updates) ---
   const sessionIndex = mockSessions.findIndex(s => s.sessionId === input.sessionId);
 
   if (sessionIndex !== -1) {
-    mockSessions[sessionIndex].selectedIdeaIds = input.ideaIds;
-    // Also update the status of the selected ideas to 'selectedForSession'
-    input.ideaIds.forEach(ideaId => {
-      const ideaIndex = mockIdeas.findIndex(i => i.ideaId === ideaId);
-      if (ideaIndex !== -1) {
-        mockIdeas[ideaIndex].status = 'selectedForSession';
-      }
-    });
+    // Add the new idea ID to the session's list if it's not already there.
+    if (!mockSessions[sessionIndex].selectedIdeaIds.includes(pickedIdeaId)) {
+        mockSessions[sessionIndex].selectedIdeaIds.push(pickedIdeaId);
+    }
     
-    // Also update session status from 'planned' to 'active' if it was planned and ideas were selected
-    if (mockSessions[sessionIndex].status === 'planned' && input.ideaIds.length > 0) {
+    // Update the idea's status to 'selectedForSession'.
+    const ideaIndex = mockIdeas.findIndex(i => i.ideaId === pickedIdeaId);
+    if (ideaIndex !== -1) {
+      mockIdeas[ideaIndex].status = 'selectedForSession';
+    }
+    
+    // If the session was 'planned', move it to 'active'.
+    if (mockSessions[sessionIndex].status === 'planned') {
         mockSessions[sessionIndex].status = 'active';
     }
 
-    console.log(`Selected ideas ${input.ideaIds.join(', ')} for session ${input.sessionId}`);
+    console.log(`Selected idea ${pickedIdeaId} for session ${input.sessionId}`);
   } else {
     console.error(`Session ${input.sessionId} not found.`);
-    return { success: false };
+    return { ideaId: null };
   }
   
-  revalidatePath('/admin/sessions');
+  // Revalidate paths to reflect changes in the UI.
   revalidatePath(`/sessions/${input.sessionId}`);
+  revalidatePath('/admin/sessions');
   revalidatePath('/admin/ideas');
-  return { success: true };
+  revalidatePath('/dashboard');
+
+  return { ideaId: pickedIdeaId };
 }

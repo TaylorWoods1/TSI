@@ -15,6 +15,11 @@ import { Textarea } from '@/components/ui/textarea';
 import type { IdeationSession } from '@/lib/types';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface EditSessionDialogProps {
   session: IdeationSession | null;
@@ -26,6 +31,7 @@ interface EditSessionDialogProps {
 export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSessionDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [date, setDate] = useState<Date | undefined>();
   const { toast } = useToast();
 
   const isNewSession = session && !mockSessions.some(s => s.sessionId === session.sessionId);
@@ -34,22 +40,23 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
     if (session) {
       setName(session.name);
       setDescription(session.description);
+      setDate(session.sessionDate ? new Date(session.sessionDate) : new Date());
     }
   }, [session]);
 
   const handleSave = () => {
     if (!session) return;
     
-    if (!name.trim() || !description.trim()) {
+    if (!name.trim() || !description.trim() || !date) {
         toast({
             title: "Validation Error",
-            description: "Please fill out all fields.",
+            description: "Please fill out all fields, including the date.",
             variant: "destructive"
         });
         return;
     }
 
-    onSave({ ...session, name, description });
+    onSave({ ...session, name, description, sessionDate: date.toISOString() });
   };
 
   if (!session) return null;
@@ -78,6 +85,31 @@ export function EditSessionDialog({ session, isOpen, onClose, onSave }: EditSess
               onChange={(e) => setDescription(e.target.value)}
               className="min-h-[100px]"
             />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="date">Session Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <DialogFooter>

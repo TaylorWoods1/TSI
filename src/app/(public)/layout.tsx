@@ -28,7 +28,7 @@ export default function PublicLayout({
           <path d="M17 14h-1.5" />
           <circle cx="12" cy="12" r="10" />
         </svg>
-        Taylor Innovation
+        Tech Sol Innovations
       </div>
       {children}
     </div>

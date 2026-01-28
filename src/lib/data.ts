@@ -2,7 +2,7 @@ import type { User, Idea, IdeationSession, UseCase, Solution } from './types';
 
 export const mockAdmin: User = {
   userId: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-  email: 'admin@taylor.com',
+  email: 'admin@tsi.com',
   firstName: 'Admin',
   lastName: 'User',
   role: 'administrator',
@@ -13,7 +13,7 @@ export const mockUsers: User[] = [
   mockAdmin,
   {
     userId: 'b2c3d4e5-f6a7-8901-2345-67890abcdef1',
-    email: 'employee1@taylor.com',
+    email: 'employee1@tsi.com',
     firstName: 'John',
     lastName: 'Doe',
     role: 'employee',
@@ -21,7 +21,7 @@ export const mockUsers: User[] = [
   },
   {
     userId: 'c3d4e5f6-a7b8-9012-3456-7890abcdef12',
-    email: 'employee2@taylor.com',
+    email: 'employee2@tsi.com',
     firstName: 'Jane',
     lastName: 'Smith',
     role: 'employee',
@@ -29,7 +29,7 @@ export const mockUsers: User[] = [
   },
   {
     userId: 'd4e5f6a7-b8c9-0123-4567-890abcdef123',
-    email: 'employee3@taylor.com',
+    email: 'employee3@tsi.com',
     firstName: 'Peter',
     lastName: 'Jones',
     role: 'employee',

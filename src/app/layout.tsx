@@ -7,7 +7,7 @@ import { AuthProvider } from '@/lib/auth';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Taylor Innovation Platform',
+  title: 'Tech Sol Innovations Platform',
   description: 'Fostering organisational innovation through collaborative idea development.',
 };
 

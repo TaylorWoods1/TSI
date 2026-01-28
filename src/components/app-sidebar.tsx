@@ -63,7 +63,7 @@ export function AppSidebar() {
               <path d="M17 14h-1.5" />
               <circle cx="12" cy="12" r="10" />
             </svg>
-            <span className="sr-only">Taylor Inc</span>
+            <span className="sr-only">TSI</span>
           </Link>
 
           {navItems.map((item) => (

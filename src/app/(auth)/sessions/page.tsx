@@ -100,9 +100,8 @@ export default function SessionsPage() {
     setEditingSession(session);
   };
   
-  const handleCloseDialogs = () => {
+  const handleCloseEditDialog = () => {
     setEditingSession(null);
-    setDeletingSession(null);
     setIsCreatingNew(false);
   }
 
@@ -186,7 +185,7 @@ export default function SessionsPage() {
         session={editingSession}
         isNew={isCreatingNew}
         isOpen={!!editingSession}
-        onClose={handleCloseDialogs}
+        onClose={handleCloseEditDialog}
         onSave={handleSaveSession}
       />
       

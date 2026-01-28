@@ -38,7 +38,7 @@ export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   // We use local state to demonstrate mutation, in a real app this would be a server action + revalidation
-  const [sessions, setSessions] = useState(initialMockSessions);
+  const [sessions, setSessions] = useState(() => JSON.parse(JSON.stringify(initialMockSessions)));
   const [editingSession, setEditingSession] = useState<IdeationSession | null>(null);
   const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);

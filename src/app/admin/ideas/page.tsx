@@ -24,13 +24,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { EditIdeaDialog } from '@/components/edit-idea-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 const statusVariant = (status: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
   switch (status) {
@@ -51,20 +46,34 @@ type IdeaWithUser = Idea & {
 
 
 export default function AdminIdeasPage() {
-  const [ideaToView, setIdeaToView] = useState<IdeaWithUser | null>(null);
+  const { toast } = useToast();
+  // Deep copy mock data to allow for mutation in state
+  const [ideas, setIdeas] = useState(() => JSON.parse(JSON.stringify(mockIdeas)));
+  const [ideaToEdit, setIdeaToEdit] = useState<IdeaWithUser | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const ideasWithUsers: IdeaWithUser[] = mockIdeas.map((idea) => ({
+  const ideasWithUsers: IdeaWithUser[] = ideas.map((idea: Idea) => ({
     ...idea,
     user: idea.isAnonymous ? null : mockUsers.find((u) => u.userId === idea.userId) || null,
   }));
 
-  const handleViewDetails = (idea: IdeaWithUser) => {
-    setIdeaToView(idea);
+  const handleTriggerEdit = (idea: IdeaWithUser) => {
+    // Timeout to prevent race condition with dropdown menu closing
+    setTimeout(() => {
+        setIdeaToEdit(idea);
+        setIsEditDialogOpen(true);
+    }, 150);
   };
-
-  const handleCloseDetails = () => {
-    setIdeaToView(null);
-  }
+  
+  const handleSaveIdea = (updatedIdea: Idea) => {
+    setIdeas((prevIdeas: Idea[]) => prevIdeas.map(idea => 
+      idea.ideaId === updatedIdea.ideaId ? updatedIdea : idea
+    ));
+    toast({
+        title: "Idea Updated",
+        description: `The idea "${updatedIdea.title}" has been saved.`,
+    });
+  };
 
   return (
     <div className="container mx-auto p-0">
@@ -113,8 +122,8 @@ export default function AdminIdeasPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleViewDetails(idea)}>
-                          View Details
+                        <DropdownMenuItem onClick={() => handleTriggerEdit(idea)}>
+                          Edit Idea
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>Set as Submitted</DropdownMenuItem>
@@ -129,25 +138,12 @@ export default function AdminIdeasPage() {
         </CardContent>
       </Card>
       
-      <Dialog open={!!ideaToView} onOpenChange={(isOpen) => !isOpen && handleCloseDetails()}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{ideaToView?.title}</DialogTitle>
-            <DialogDescription>
-              Submitted by{' '}
-              {ideaToView?.isAnonymous ? (
-                <span className="italic">Anonymous</span>
-              ) : (
-                <span className="font-medium">{`${ideaToView?.user?.firstName} ${ideaToView?.user?.lastName}`}</span>
-              )}{' '}
-              on {ideaToView && new Date(ideaToView.submissionDate).toLocaleDateString()}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 text-sm text-foreground max-h-[60vh] overflow-y-auto">
-            {ideaToView?.description}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EditIdeaDialog
+        idea={ideaToEdit}
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSave={handleSaveIdea}
+      />
     </div>
   );
 }

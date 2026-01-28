@@ -9,8 +9,10 @@ import { Lightbulb, Plus, Workflow, Sparkles, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { SessionIdeaLottery } from '@/components/session-idea-lottery';
 import { Button } from '@/components/ui/button';
+import { useParams } from 'next/navigation';
 
-export default function SessionDetailPage({ params }: { params: { sessionId: string } }) {
+export default function SessionDetailPage() {
+  const params = useParams<{ sessionId: string }>();
   const { user } = useAuth();
   const session = mockSessions.find((s) => s.sessionId === params.sessionId);
   const selectedIdeas = mockIdeas.filter((i) => session?.selectedIdeaIds.includes(i.ideaId));

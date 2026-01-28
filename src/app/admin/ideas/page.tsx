@@ -75,6 +75,17 @@ export default function AdminIdeasPage() {
     });
   };
 
+  const handleUpdateStatus = (ideaId: string, status: Idea['status']) => {
+    const ideaTitle = ideas.find((i: Idea) => i.ideaId === ideaId)?.title;
+    setIdeas((prevIdeas: Idea[]) => prevIdeas.map(idea => 
+      idea.ideaId === ideaId ? { ...idea, status } : idea
+    ));
+    toast({
+        title: "Status Updated",
+        description: `"${ideaTitle}" is now ${status === 'selectedForSession' ? 'selected' : status}.`,
+    });
+  };
+
   return (
     <div className="container mx-auto p-0">
       <PageHeader
@@ -126,8 +137,21 @@ export default function AdminIdeasPage() {
                           Edit Idea
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>Set as Submitted</DropdownMenuItem>
-                        <DropdownMenuItem>Archive</DropdownMenuItem>
+                        {idea.status !== 'submitted' && (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(idea.ideaId, 'submitted')}>
+                                Set as Submitted
+                            </DropdownMenuItem>
+                        )}
+                        
+                        {idea.status === 'archived' ? (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(idea.ideaId, 'submitted')}>
+                                Unarchive
+                            </DropdownMenuItem>
+                        ) : (
+                             <DropdownMenuItem onClick={() => handleUpdateStatus(idea.ideaId, 'archived')}>
+                                Archive
+                            </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

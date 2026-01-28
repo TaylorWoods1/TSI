@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Wand2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { mockSessions, mockIdeas } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { IdeaLottery } from '@/components/idea-lottery';
+import Link from 'next/link';
 
 const getStatusClass = (status: string) => {
     switch (status) {
@@ -36,8 +36,6 @@ const getStatusClass = (status: string) => {
   };
 
 export default function AdminSessionsPage() {
-  const submittedIdeas = mockIdeas.filter(idea => idea.status === 'submitted');
-
   return (
     <div className="container mx-auto p-0">
       <PageHeader
@@ -86,7 +84,14 @@ export default function AdminSessionsPage() {
                         })}
                       </div>
                     ) : (
-                      session.status === 'planned' && <IdeaLottery sessionId={session.sessionId} availableIdeas={submittedIdeas} />
+                      session.status === 'planned' && (
+                        <Link href={`/sessions/${session.sessionId}`} passHref>
+                            <Button size="sm" variant="outline">
+                                <Wand2 className="mr-2 h-4 w-4" />
+                                Select in Session
+                            </Button>
+                        </Link>
+                      )
                     )}
                   </TableCell>
                   <TableCell>

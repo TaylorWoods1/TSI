@@ -1,19 +1,22 @@
+'use client';
+
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { mockIdeas, mockSessions, mockUseCases, mockSolutions } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Lightbulb, Plus, Workflow, Sparkles, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { SessionIdeaLottery } from '@/components/session-idea-lottery';
+import { Button } from '@/components/ui/button';
 
 export default function SessionDetailPage({ params }: { params: { sessionId: string } }) {
+  const { user } = useAuth();
   const session = mockSessions.find((s) => s.sessionId === params.sessionId);
   const selectedIdeas = mockIdeas.filter((i) => session?.selectedIdeaIds.includes(i.ideaId));
   const useCases = mockUseCases.filter((uc) => uc.sessionId === session?.sessionId);
   const solutions = mockSolutions.filter((s) => s.sessionId === session?.sessionId);
+  const submittedIdeas = mockIdeas.filter((i) => i.status === 'submitted');
 
   if (!session) {
     return (
@@ -119,15 +122,20 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             </div>
           </div>
         </div>
+      ) : session.status === 'completed' ? (
+            <Alert>
+                <Lightbulb className="h-4 w-4" />
+                <AlertTitle>Session Completed</AlertTitle>
+                <AlertDescription>
+                    This session is over. No ideas were selected.
+                </AlertDescription>
+            </Alert>
       ) : (
-        <Alert>
-            <Lightbulb className="h-4 w-4" />
-            <AlertTitle>Idea Selection Pending</AlertTitle>
-            <AlertDescription>
-            An idea for this session has not been selected yet. Check back soon!
-            {session.status === 'planned' && " An administrator can select ideas from the Session Management page."}
-          </AlertDescription>
-        </Alert>
+         <SessionIdeaLottery
+            sessionId={session.sessionId}
+            availableIdeas={submittedIdeas}
+            isAdmin={user?.role === 'administrator'}
+         />
       )}
     </div>
   );

@@ -7,7 +7,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,40 +36,58 @@ interface EditSessionDialogProps {
   onSave: (updatedSession: IdeationSession) => void;
 }
 
+// A completely rebuilt component to address the UI lock-up bug.
 export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: EditSessionDialogProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState<Date | undefined>();
-  const [status, setStatus] = useState<IdeationSession['status']>('planned');
+  // Internal state for the form fields to avoid conflicts with parent state
+  const [formData, setFormData] = useState<Partial<IdeationSession>>({});
   const { toast } = useToast();
 
+  // Effect to populate the form only when the dialog opens with a valid session
   useEffect(() => {
-    if (session) {
-      setName(session.name);
-      setDescription(session.description);
-      setDate(session.sessionDate ? new Date(session.sessionDate) : new Date());
-      setStatus(session.status);
+    if (isOpen && session) {
+      setFormData({
+        ...session,
+        sessionDate: session.sessionDate ? new Date(session.sessionDate) : new Date(),
+      });
     }
-  }, [session]);
+  }, [isOpen, session]);
+
+  const handleFieldChange = (field: keyof IdeationSession, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleSave = () => {
-    if (!session) return;
-    
-    if (!name.trim() || !description.trim() || !date) {
-        toast({
-            title: "Validation Error",
-            description: "Please fill out all fields, including the date.",
-            variant: "destructive"
-        });
-        return;
+    if (!formData.name?.trim() || !formData.description?.trim() || !formData.sessionDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill out all fields, including the date.",
+        variant: "destructive",
+      });
+      return;
     }
-
-    onSave({ ...session, name, description, sessionDate: date.toISOString(), status });
+    
+    // Pass a properly formatted session object back to the parent
+    onSave({
+      ...session,
+      ...formData,
+      sessionId: session!.sessionId,
+      sessionDate: new Date(formData.sessionDate).toISOString(),
+    } as IdeationSession);
+    
     onClose();
   };
 
+  // This handler ensures that any action that should close the dialog
+  // (clicking the 'x', pressing Esc, clicking the overlay) correctly
+  // signals the parent component.
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isNew ? 'Create Session' : 'Edit Session'}</DialogTitle>
@@ -83,14 +100,18 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Session Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input 
+              id="name" 
+              value={formData.name || ''} 
+              onChange={(e) => handleFieldChange('name', e.target.value)} 
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={formData.description || ''}
+              onChange={(e) => handleFieldChange('description', e.target.value)}
               className="min-h-[100px]"
             />
           </div>
@@ -103,18 +124,18 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
                     variant={"outline"}
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
+                      !formData.sessionDate && "text-muted-foreground"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                    {formData.sessionDate ? format(new Date(formData.sessionDate), "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={date}
-                    onSelect={setDate}
+                    selected={formData.sessionDate ? new Date(formData.sessionDate) : undefined}
+                    onSelect={(date) => handleFieldChange('sessionDate', date)}
                     initialFocus
                   />
                 </PopoverContent>
@@ -122,7 +143,10 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
             </div>
             <div className="grid gap-2">
               <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={(value: IdeationSession['status']) => setStatus(value)}>
+              <Select 
+                value={formData.status || 'planned'} 
+                onValueChange={(value: IdeationSession['status']) => handleFieldChange('status', value)}
+              >
                   <SelectTrigger id="status">
                       <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
@@ -136,9 +160,7 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
           </div>
         </div>
         <DialogFooter>
-           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
+           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>

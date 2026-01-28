@@ -67,8 +67,6 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
     onSave({ ...session, name, description, sessionDate: date.toISOString(), status });
   };
 
-  if (!session) return null;
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>

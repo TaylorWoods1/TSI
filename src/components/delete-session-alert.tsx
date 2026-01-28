@@ -20,7 +20,12 @@ interface DeleteSessionAlertProps {
 }
 
 export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: DeleteSessionAlertProps) {
-  if (!session) return null;
+
+  const handleConfirm = () => {
+    if (session) {
+        onConfirm(session.sessionId);
+    }
+  }
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -28,12 +33,12 @@ export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: Dele
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the "{session.name}" session.
+            This action cannot be undone. This will permanently delete the "{session?.name}" session.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onConfirm(session.sessionId)} variant="destructive">
+          <AlertDialogAction onClick={handleConfirm} variant="destructive">
             Yes, delete it
           </AlertDialogAction>
         </AlertDialogFooter>

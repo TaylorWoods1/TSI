@@ -11,7 +11,7 @@ import { Lightbulb, Plus, Workflow, Sparkles, AlertCircle } from 'lucide-react';
 
 export default function SessionDetailPage({ params }: { params: { sessionId: string } }) {
   const session = mockSessions.find((s) => s.sessionId === params.sessionId);
-  const idea = mockIdeas.find((i) => i.ideaId === session?.selectedIdeaId);
+  const selectedIdeas = mockIdeas.filter((i) => session?.selectedIdeaIds.includes(i.ideaId));
   const useCases = mockUseCases.filter((uc) => uc.sessionId === session?.sessionId);
   const solutions = mockSolutions.filter((s) => s.sessionId === session?.sessionId);
 
@@ -27,27 +27,31 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
     <div className="container mx-auto p-0">
       <PageHeader title={session.name} description={session.description} />
 
-      {idea ? (
+      {selectedIdeas.length > 0 ? (
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <Card className="mb-6">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-3">
                         <Lightbulb className="h-6 w-6 text-primary"/>
-                        Selected Idea
+                        Selected Ideas
                     </CardTitle>
                     <CardDescription>The focus of this ideation session.</CardDescription>
                 </CardHeader>
-              <CardContent>
-                <h3 className="text-xl font-bold">{idea.title}</h3>
-                <p className="mt-2 text-muted-foreground">{idea.description}</p>
+              <CardContent className="space-y-4">
+                {selectedIdeas.map(idea => (
+                     <div key={idea.ideaId} className="rounded-lg border bg-card p-4">
+                        <h3 className="text-xl font-bold">{idea.title}</h3>
+                        <p className="mt-2 text-muted-foreground">{idea.description}</p>
+                    </div>
+                ))}
               </CardContent>
             </Card>
 
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2"><Workflow className="h-6 w-6 text-primary" /> Use Cases</h2>
-                 <p className="text-muted-foreground">What are the specific applications or scenarios for this idea?</p>
+                 <p className="text-muted-foreground">What are the specific applications or scenarios for these ideas?</p>
               </div>
               
               <div className="space-y-4">
@@ -121,7 +125,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
             <AlertTitle>Idea Selection Pending</AlertTitle>
             <AlertDescription>
             An idea for this session has not been selected yet. Check back soon!
-            {session.status === 'planned' && " An administrator will randomly select an idea when the session becomes active."}
+            {session.status === 'planned' && " An administrator can select ideas from the Session Management page."}
           </AlertDescription>
         </Alert>
       )}

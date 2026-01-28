@@ -22,7 +22,7 @@ export type IdeationSession = {
   name: string;
   description: string;
   sessionDate: string;
-  selectedIdeaId: string | null;
+  selectedIdeaIds: string[];
   status: 'planned' | 'active' | 'completed';
 };
 
@@ -30,7 +30,7 @@ export type UseCase = {
   useCaseId: string;
   sessionId: string;
   ideaId: string;
-  description: string;
+  description:string;
   createdAt: string;
 };
 

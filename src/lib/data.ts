@@ -91,7 +91,7 @@ export const mockSessions: IdeationSession[] = [
     name: 'Q4 Innovation Sprint - Customer Experience',
     description: 'Focus on ideas that will improve our customer journey and satisfaction.',
     sessionDate: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString(),
-    selectedIdeaId: 'idea-001',
+    selectedIdeaIds: ['idea-001'],
     status: 'active',
   },
   {
@@ -99,7 +99,7 @@ export const mockSessions: IdeationSession[] = [
     name: 'Q1 2024 Employee Wellness',
     description: 'Brainstorming session for initiatives related to employee health and wellness.',
     sessionDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
-    selectedIdeaId: null,
+    selectedIdeaIds: [],
     status: 'planned',
   },
   {
@@ -107,7 +107,7 @@ export const mockSessions: IdeationSession[] = [
     name: 'Q3 Internal Process Optimization',
     description: 'A look back at ideas for improving our internal workflows.',
     sessionDate: new Date('2023-09-15').toISOString(),
-    selectedIdeaId: 'idea-004',
+    selectedIdeaIds: ['idea-004'],
     status: 'completed',
   },
 ];

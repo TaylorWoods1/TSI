@@ -18,9 +18,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockSessions } from '@/lib/data';
+import { mockSessions, mockIdeas } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { RandomIdeaPicker } from '@/components/random-idea-picker';
+import { IdeaLottery } from '@/components/idea-lottery';
 
 const getStatusClass = (status: string) => {
     switch (status) {
@@ -36,6 +36,8 @@ const getStatusClass = (status: string) => {
   };
 
 export default function AdminSessionsPage() {
+  const submittedIdeas = mockIdeas.filter(idea => idea.status === 'submitted');
+
   return (
     <div className="container mx-auto p-0">
       <PageHeader
@@ -61,7 +63,7 @@ export default function AdminSessionsPage() {
                 <TableHead>Session Name</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Selected Idea</TableHead>
+                <TableHead>Selected Idea(s)</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -76,10 +78,15 @@ export default function AdminSessionsPage() {
                   </TableCell>
                   <TableCell>{new Date(session.sessionDate).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    {session.selectedIdeaId ? (
-                      <Badge variant="outline">{session.selectedIdeaId}</Badge>
+                    {session.selectedIdeaIds && session.selectedIdeaIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {session.selectedIdeaIds.map(id => {
+                            const idea = mockIdeas.find(i => i.ideaId === id);
+                            return <Badge key={id} variant="outline" title={idea?.title}>{idea?.title ? (idea.title.length > 25 ? idea.title.substring(0, 25) + '...' : idea.title) : id}</Badge>
+                        })}
+                      </div>
                     ) : (
-                      session.status === 'planned' && <RandomIdeaPicker sessionId={session.sessionId} />
+                      session.status === 'planned' && <IdeaLottery sessionId={session.sessionId} availableIdeas={submittedIdeas} />
                     )}
                   </TableCell>
                   <TableCell>

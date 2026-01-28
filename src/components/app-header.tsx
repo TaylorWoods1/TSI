@@ -9,7 +9,7 @@ import {
   PanelLeft,
   Search,
   ShoppingCart,
-  Users2,
+  BrainCircuit,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -69,10 +69,10 @@ export function AppHeader() {
             {user?.role === 'administrator' && (
               <>
                 <Link
-                  href="/admin/dashboard"
+                  href="/admin/sessions"
                   className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                 >
-                  <Users2 className="h-5 w-5" />
+                  <BrainCircuit className="h-5 w-5" />
                   Admin
                 </Link>
               </>

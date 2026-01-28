@@ -10,11 +10,9 @@ import { useAuth } from '@/lib/auth';
 import {
   Home,
   Lightbulb,
-  Users,
   Presentation,
   Settings,
   UserCog,
-  LayoutDashboard,
   BrainCircuit,
   Boxes,
 } from 'lucide-react';
@@ -28,7 +26,6 @@ const employeeNavItems = [
 ];
 
 const adminNavItems = [
-  { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Admin Dashboard' },
   { href: '/admin/ideas', icon: Boxes, label: 'Manage Ideas' },
   { href: '/admin/sessions', icon: BrainCircuit, label: 'Manage Sessions' },
   { href: '/admin/users', icon: UserCog, label: 'Manage Users' },

@@ -24,7 +24,7 @@ export default function LoginPage() {
       description: `You are now logged in as an ${role}.`,
     });
     login(role);
-    router.push('/dashboard');
+    router.push(role === 'administrator' ? '/admin/sessions' : '/dashboard');
   };
 
   return (

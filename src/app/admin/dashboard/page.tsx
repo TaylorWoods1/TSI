@@ -1,52 +1,21 @@
-import { PageHeader } from '@/components/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { mockIdeas, mockUsers, mockSessions } from '@/lib/data';
-import { Lightbulb, Users, Presentation, CheckCircle, Archive, Clock } from 'lucide-react';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function AdminDashboardPage() {
-  const submittedIdeas = mockIdeas.filter((i) => i.status === 'submitted').length;
-  const totalUsers = mockUsers.length;
-  const activeSessions = mockSessions.filter((s) => s.status === 'active').length;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/admin/sessions');
+  }, [router]);
 
   return (
-    <div className="container mx-auto p-0">
-      <PageHeader
-        title="Admin Dashboard"
-        description="Oversee and manage all platform activity from here."
-      />
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Ideas</CardTitle>
-            <Lightbulb className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{submittedIdeas}</div>
-            <p className="text-xs text-muted-foreground">ideas awaiting review or selection</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalUsers}</div>
-            <p className="text-xs text-muted-foreground">employees and administrators</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Sessions</CardTitle>
-            <Presentation className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeSessions}</div>
-            <p className="text-xs text-muted-foreground">sessions currently in progress</p>
-          </CardContent>
-        </Card>
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <p className="text-muted-foreground">Redirecting to Admin Sessions...</p>
       </div>
-      {/* More widgets and quick links can be added here */}
     </div>
   );
 }

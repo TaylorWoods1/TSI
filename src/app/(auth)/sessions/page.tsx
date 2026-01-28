@@ -37,11 +37,16 @@ import { useToast } from '@/hooks/use-toast';
 export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  // We use local state to demonstrate mutation, in a real app this would be a server action + revalidation
   const [sessions, setSessions] = useState(() => JSON.parse(JSON.stringify(initialMockSessions)));
+
+  // State for the edit dialog
   const [editingSession, setEditingSession] = useState<IdeationSession | null>(null);
-  const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+
+  // State for the delete alert
+  const [deletingSession, setDeletingSession] = useState<IdeationSession | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -67,22 +72,22 @@ export default function SessionsPage() {
         title: isNew ? "Session Created" : "Session Updated",
         description: `The "${updatedSession.name}" session has been saved.`,
     });
-    setEditingSession(null);
-    setIsCreatingNew(false);
+    setIsEditOpen(false);
   };
 
-  const handleConfirmDelete = (sessionId: string) => {
-    const sessionName = sessions.find(s => s.sessionId === sessionId)?.name;
-    setSessions(prev => prev.filter(s => s.sessionId !== sessionId));
+  const handleConfirmDelete = () => {
+    if (!deletingSession) return;
+    const sessionName = sessions.find(s => s.sessionId === deletingSession.sessionId)?.name;
+    setSessions(prev => prev.filter(s => s.sessionId !== deletingSession.sessionId));
     toast({
         title: "Session Deleted",
         description: `The "${sessionName}" session has been removed.`,
         variant: "destructive"
     });
-    setDeletingSession(null);
+    setIsDeleteOpen(false);
   };
 
-  const handleCreateSession = () => {
+  const handleTriggerCreate = () => {
     const newSession: IdeationSession = {
       sessionId: `session-${Date.now()}`,
       name: 'New Session',
@@ -93,17 +98,19 @@ export default function SessionsPage() {
     };
     setIsCreatingNew(true);
     setEditingSession(newSession);
+    setIsEditOpen(true);
   };
   
-  const handleEditSession = (session: IdeationSession) => {
+  const handleTriggerEdit = (session: IdeationSession) => {
     setIsCreatingNew(false);
     setEditingSession(session);
+    setIsEditOpen(true);
   };
   
-  const handleCloseEditDialog = () => {
-    setEditingSession(null);
-    setIsCreatingNew(false);
-  }
+  const handleTriggerDelete = (session: IdeationSession) => {
+    setDeletingSession(session);
+    setIsDeleteOpen(true);
+  };
 
   return (
     <div className="container mx-auto p-0">
@@ -112,7 +119,7 @@ export default function SessionsPage() {
         description="Explore upcoming, active, and past innovation sessions."
       >
         {user?.role === 'administrator' && (
-          <Button onClick={handleCreateSession}>
+          <Button onClick={handleTriggerCreate}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Create Session
           </Button>
@@ -144,8 +151,8 @@ export default function SessionsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleEditSession(session)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setDeletingSession(session)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                        <DropdownMenuItem onClick={() => handleTriggerEdit(session)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleTriggerDelete(session)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -184,15 +191,15 @@ export default function SessionsPage() {
        <EditSessionDialog
         session={editingSession}
         isNew={isCreatingNew}
-        isOpen={!!editingSession}
-        onClose={handleCloseEditDialog}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
         onSave={handleSaveSession}
       />
       
       <DeleteSessionAlert
         session={deletingSession}
-        isOpen={!!deletingSession}
-        onClose={() => setDeletingSession(null)}
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
       />
     </div>

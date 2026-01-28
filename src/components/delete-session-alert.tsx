@@ -16,19 +16,13 @@ interface DeleteSessionAlertProps {
   session: IdeationSession | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (sessionId: string) => void;
+  onConfirm: () => void;
 }
 
 export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: DeleteSessionAlertProps) {
 
-  const handleConfirm = () => {
-    if (session) {
-        onConfirm(session.sessionId);
-    }
-  }
-
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
+    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -38,7 +32,7 @@ export function DeleteSessionAlert({ session, isOpen, onClose, onConfirm }: Dele
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm} variant="destructive">
+          <AlertDialogAction onClick={onConfirm} variant="destructive">
             Yes, delete it
           </AlertDialogAction>
         </AlertDialogFooter>

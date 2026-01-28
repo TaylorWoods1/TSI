@@ -68,7 +68,7 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isNew ? 'Create Session' : 'Edit Session'}</DialogTitle>

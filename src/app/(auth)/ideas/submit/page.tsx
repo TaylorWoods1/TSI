@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the page for submitting a new idea.
+ */
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -7,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -18,10 +20,15 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * A page component that provides a form for users to submit new ideas.
+ * On submission, it displays a success toast and redirects to the dashboard.
+ */
 export default function SubmitIdeaPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // In a real app, this would be a server action that saves data to a database.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     toast({

@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the admin page for managing all submitted ideas.
+ */
 'use client';
 
 import { useState } from 'react';
@@ -27,35 +30,27 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { mockIdeas, mockUsers } from '@/lib/data';
 import type { Idea } from '@/lib/types';
+import { getIdeaStatusVariant } from '@/lib/utils';
 
-const statusVariant = (
-  status: string
-): 'default' | 'secondary' | 'outline' | 'destructive' => {
-  switch (status) {
-    case 'selectedForSession':
-      return 'default';
-    case 'submitted':
-      return 'secondary';
-    case 'archived':
-      return 'outline';
-    default:
-      return 'outline';
-  }
-};
-
+// Augment the Idea type with optional user details for display purposes.
 type IdeaWithUser = Idea & {
   user: (typeof mockUsers)[0] | null;
 };
 
+/**
+ * The main component for the idea management page.
+ * It displays a table of all ideas, allowing administrators to view, edit, and update their status.
+ */
 export default function AdminIdeasPage() {
   const { toast } = useToast();
-  // Deep copy mock data to allow for mutation in state
-  const [ideas, setIdeas] = useState(() =>
+  // Deep copy mock data to allow for mutation in state. In a real app, this would be managed via API calls.
+  const [ideas, setIdeas] = useState<Idea[]>(() =>
     JSON.parse(JSON.stringify(mockIdeas))
   );
   const [ideaToEdit, setIdeaToEdit] = useState<IdeaWithUser | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
+  // Join idea data with user data for displaying author names.
   const ideasWithUsers: IdeaWithUser[] = ideas.map((idea: Idea) => ({
     ...idea,
     user: idea.isAnonymous
@@ -133,7 +128,7 @@ export default function AdminIdeasPage() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={statusVariant(idea.status)}
+                      variant={getIdeaStatusVariant(idea.status)}
                       className="capitalize"
                     >
                       {idea.status === 'selectedForSession'
@@ -173,7 +168,6 @@ export default function AdminIdeasPage() {
                             Set as Submitted
                           </DropdownMenuItem>
                         )}
-
                         {idea.status === 'archived' ? (
                           <DropdownMenuItem
                             onClick={() =>

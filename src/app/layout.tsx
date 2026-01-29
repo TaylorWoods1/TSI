@@ -1,3 +1,7 @@
+/**
+ * @fileoverview The root layout for the entire application. It sets up the HTML structure,
+ * loads global styles and fonts, and wraps the application in the AuthProvider.
+ */
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -11,6 +15,13 @@ export const metadata: Metadata = {
   description: 'Fostering organisational innovation through collaborative idea development.',
 };
 
+/**
+ * The root layout component for the Next.js application.
+ *
+ * @param {object} props - The component props.
+ * @param {React.ReactNode} props.children - The child components to be rendered within the layout.
+ * @returns The root JSX element for the application.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

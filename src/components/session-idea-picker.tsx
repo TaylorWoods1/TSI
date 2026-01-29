@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines a button component that triggers the selection of a new random idea for a session.
+ */
 'use client';
 
 import { useTransition } from 'react';
@@ -6,13 +9,28 @@ import { Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pickAndSelectRandomIdeaForSessionAction } from '@/app/actions';
 
+/**
+ * Props for the SessionIdeaPicker component.
+ */
 interface SessionIdeaPickerProps {
+  /** The ID of the session for which to pick an idea. */
   sessionId: string;
+  /** The text to display on the button. */
   buttonText: string;
+  /** Optional additional CSS classes for the button. */
   className?: string;
+  /** The visual variant of the button. */
   variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive' | null;
 }
 
+/**
+ * A button that, when clicked, invokes a server action to randomly select a new
+ * submitted idea and add it to the current session. It handles loading states
+ * and displays toasts for success or failure.
+ *
+ * @param props - The properties for the component.
+ * @returns A JSX element representing the picker button.
+ */
 export function SessionIdeaPicker({ sessionId, buttonText, className, variant = 'default' }: SessionIdeaPickerProps) {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();

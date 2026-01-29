@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the main application sidebar, providing navigation and logout functionality.
+ */
 'use client';
 
 import {
@@ -17,23 +20,32 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { LogoIcon } from './icons/logo-icon';
 
+// Navigation items for standard employees
 const employeeNavItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/ideas/submit', icon: Lightbulb, label: 'Submit Idea' },
   { href: '/sessions', icon: Presentation, label: 'Sessions' },
 ];
 
+// Additional navigation items for administrators
 const adminNavItems = [
   { href: '/admin/ideas', icon: Boxes, label: 'Manage Ideas' },
   { href: '/admin/users', icon: UserCog, label: 'Manage Users' },
 ];
 
+/**
+ * The main sidebar component for the application.
+ * It displays navigation links based on the user's role and includes a logout button.
+ * On smaller screens, it's hidden, and navigation is handled by the AppHeader.
+ */
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
+  // Combine navigation items if the user is an administrator
   const navItems = user?.role === 'administrator' ? [...employeeNavItems, ...adminNavItems] : employeeNavItems;
 
   const handleLogout = () => {
@@ -49,25 +61,7 @@ export function AppSidebar() {
             href="/dashboard"
             className="group flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:h-8 md:w-8 md:text-base"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4 transition-all group-hover:scale-110"
-            >
-              <path d="M15.5 3.84a1 1 0 0 1 1.28-1.28l4.33 4.33a1 1 0 0 1-1.28 1.28L15.5 3.84z" />
-              <path d="M12.5 6.84a1 1 0 0 0-1.28-1.28l-4.33 4.33a1 1 0 0 0 1.28 1.28L12.5 6.84z" />
-              <path d="m14 17 3-3" />
-              <path d="M10 17v-3.5" />
-              <path d="M7 11v1.5" />
-              <path d="m7 17 3-3" />
-              <path d="M17 14h-1.5" />
-              <circle cx="12" cy="12" r="10" />
-            </svg>
+            <LogoIcon className="h-4 w-4 transition-all group-hover:scale-110" />
             <span className="sr-only">TSI</span>
           </Link>
 

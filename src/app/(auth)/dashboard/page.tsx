@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the user dashboard page, which provides a summary of
+ * the user's submitted ideas and key statistics.
+ */
 'use client';
 import { ArrowUpRight, Lightbulb, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -14,25 +18,16 @@ import {
 } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { mockIdeas } from '@/lib/data';
+import { getIdeaStatusVariant } from '@/lib/utils';
 
+/**
+ * The main component for the user dashboard.
+ * It displays a welcome message, statistics on idea submissions, and a list of the user's ideas.
+ */
 export default function Dashboard() {
   const { user } = useAuth();
+  // In a real application, this data would be fetched from an API.
   const myIdeas = mockIdeas.filter((idea) => idea.userId === user?.userId);
-
-  const statusVariant = (
-    status: string
-  ): 'default' | 'secondary' | 'outline' | 'destructive' => {
-    switch (status) {
-      case 'selectedForSession':
-        return 'default';
-      case 'submitted':
-        return 'secondary';
-      case 'archived':
-        return 'outline';
-      default:
-        return 'outline';
-    }
-  };
 
   return (
     <div className="container mx-auto p-0">
@@ -88,7 +83,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-4">
                     <Badge
-                      variant={statusVariant(idea.status)}
+                      variant={getIdeaStatusVariant(idea.status)}
                       className="capitalize"
                     >
                       {idea.status === 'selectedForSession'

@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the page for viewing and managing all ideation sessions.
+ */
 'use client';
 
 import { useState } from 'react';
@@ -35,11 +38,16 @@ import type { IdeationSession } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * The main page for browsing ideation sessions.
+ * Displays a grid of all sessions and allows administrators to create, edit, or delete them.
+ */
 export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  // Deep copy the initial data to prevent mutation issues with shared mock data
-  const [sessions, setSessions] = useState(() =>
+  // In a real app, this state would be managed via API calls and a library like React Query.
+  // We deep copy the mock data to simulate a mutable data source.
+  const [sessions, setSessions] = useState<IdeationSession[]>(() =>
     JSON.parse(JSON.stringify(initialMockSessions))
   );
 
@@ -55,7 +63,7 @@ export default function SessionsPage() {
     useState<IdeationSession | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const getStatusClass = (status: string) => {
+  const getStatusClass = (status: IdeationSession['status']) => {
     switch (status) {
       case 'active':
         return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800';
@@ -118,21 +126,19 @@ export default function SessionsPage() {
 
   const handleTriggerEdit = (session: IdeationSession) => {
     // This timeout prevents a race condition between the dropdown menu closing
-    // and the dialog opening, which was causing the UI to lock.
+    // and the dialog opening, which can cause the UI to lock.
     setTimeout(() => {
       setIsCreatingNew(false);
       setSessionToEdit(session);
       setIsEditOpen(true);
-    }, 0);
+    }, 150);
   };
 
   const handleTriggerDelete = (session: IdeationSession) => {
-    // This timeout prevents a race condition between the dropdown menu closing
-    // and the dialog opening, which was causing the UI to lock.
     setTimeout(() => {
       setSessionToDelete(session);
       setIsDeleteOpen(true);
-    }, 0);
+    }, 150);
   };
 
   return (

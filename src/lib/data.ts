@@ -1,5 +1,11 @@
+/**
+ * @fileoverview Provides mock data for the application.
+ * In a real-world scenario, this data would be fetched from a database or API.
+ * This file serves as a placeholder for prototyping and UI development.
+ */
 import type { User, Idea, IdeationSession, UseCase, Solution } from './types';
 
+/** A mock user with administrator privileges. */
 export const mockAdmin: User = {
   userId: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   email: 'admin@tsi.com',
@@ -9,6 +15,7 @@ export const mockAdmin: User = {
   createdAt: new Date().toISOString(),
 };
 
+/** A list of mock users for the platform. */
 export const mockUsers: User[] = [
   mockAdmin,
   {
@@ -37,6 +44,7 @@ export const mockUsers: User[] = [
   },
 ];
 
+/** A list of mock ideas submitted by users. */
 export const mockIdeas: Idea[] = [
   {
     ideaId: 'idea-001',
@@ -85,6 +93,7 @@ export const mockIdeas: Idea[] = [
   },
 ];
 
+/** A list of mock ideation sessions. */
 export const mockSessions: IdeationSession[] = [
   {
     sessionId: 'session-01',
@@ -112,6 +121,7 @@ export const mockSessions: IdeationSession[] = [
   },
 ];
 
+/** A list of mock use cases associated with ideas in sessions. */
 export const mockUseCases: UseCase[] = [
   {
     useCaseId: 'uc-001',
@@ -129,6 +139,7 @@ export const mockUseCases: UseCase[] = [
   },
 ];
 
+/** A list of mock solutions for specific use cases. */
 export const mockSolutions: Solution[] = [
   {
     solutionId: 'sol-001',

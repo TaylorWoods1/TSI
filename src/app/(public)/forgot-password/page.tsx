@@ -1,9 +1,16 @@
+/**
+ * @fileoverview Defines the "Forgot Password" page for handling password reset requests.
+ */
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
+/**
+ * A page component that displays a form for users to request a password reset link.
+ * Note: The form submission is currently a placeholder.
+ */
 export default function ForgotPasswordPage() {
   return (
     <Card className="w-full max-w-sm">

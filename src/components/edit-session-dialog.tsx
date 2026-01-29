@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines a dialog for creating or editing an ideation session.
+ */
 'use client';
 
 import {
@@ -28,15 +31,29 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
+/**
+ * Props for the EditSessionDialog component.
+ */
 interface EditSessionDialogProps {
+  /** The session object to be edited. For new sessions, this can be a template. */
   session: IdeationSession | null;
+  /** A flag to indicate if the dialog is for creating a new session. Affects dialog titles. */
   isNew?: boolean;
+  /** Controls whether the dialog is open. */
   isOpen: boolean;
+  /** Function to call when the dialog should be closed. */
   onClose: () => void;
+  /** Function to call with the updated session data when the user saves changes. */
   onSave: (updatedSession: IdeationSession) => void;
 }
 
-// A completely rebuilt component to address the UI lock-up bug.
+/**
+ * A modal dialog that provides a form to create or edit an ideation session.
+ * It manages its own internal form state and is controlled by the `isOpen` prop.
+ *
+ * @param props - The properties for the component.
+ * @returns A JSX element representing the edit/create dialog.
+ */
 export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: EditSessionDialogProps) {
   // Internal state for the form fields to avoid conflicts with parent state
   const [formData, setFormData] = useState<Partial<IdeationSession>>({});
@@ -70,16 +87,13 @@ export function EditSessionDialog({ session, isNew, isOpen, onClose, onSave }: E
     onSave({
       ...session,
       ...formData,
-      sessionId: session!.sessionId,
+      sessionId: session!.sessionId, // The ID is non-negotiable
       sessionDate: new Date(formData.sessionDate).toISOString(),
     } as IdeationSession);
     
     onClose();
   };
 
-  // This handler ensures that any action that should close the dialog
-  // (clicking the 'x', pressing Esc, clicking the overlay) correctly
-  // signals the parent component.
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       onClose();

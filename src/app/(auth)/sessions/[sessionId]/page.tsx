@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the detail page for a specific ideation session.
+ */
 'use client';
 
 import {
@@ -49,9 +52,16 @@ import {
   mockUseCases,
 } from '@/lib/data';
 
+/**
+ * The main page component for viewing an ideation session's details.
+ * It displays information about the session and the ideas being workshopped.
+ * If multiple ideas are selected, it uses a tabbed interface to separate them.
+ */
 export default function SessionDetailPage() {
   const params = useParams<{ sessionId: string }>();
   const { user } = useAuth();
+  
+  // In a real app, this data would be fetched from an API based on the sessionId.
   const session = mockSessions.find((s) => s.sessionId === params.sessionId);
   const selectedIdeas = mockIdeas.filter((i) =>
     session?.selectedIdeaIds.includes(i.ideaId)
@@ -72,7 +82,7 @@ export default function SessionDetailPage() {
     );
   }
 
-  // A component for the placeholder when no ideas are selected yet.
+  /** A placeholder component shown when no ideas have been selected for the session yet. */
   const InitialPicker = () => (
     <Card className="text-center">
       <CardHeader>

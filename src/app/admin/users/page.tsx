@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the admin page for managing all user accounts.
+ */
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -22,6 +25,10 @@ import { mockUsers } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { placeHolderImages } from '@/lib/placeholder-images';
 
+/**
+ * The main page component for user management.
+ * It displays a table of all users, their roles, and provides actions for administrators.
+ */
 export default function AdminUsersPage() {
   return (
     <div className="container mx-auto p-0">
@@ -53,7 +60,7 @@ export default function AdminUsersPage() {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                             <AvatarImage src={placeHolderImages.find(p => p.id === "avatar")?.imageUrl} />
+                             <AvatarImage src={placeHolderImages.find(p => p.id === "avatar")?.imageUrl} alt={`${user.firstName} ${user.lastName}`} />
                             <AvatarFallback>{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
                         </Avatar>
                         <span>{user.firstName} {user.lastName}</span>

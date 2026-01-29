@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines a dialog for editing the details of an idea.
+ */
 'use client';
 
 import {
@@ -16,13 +19,27 @@ import type { Idea } from '@/lib/types';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * Props for the EditIdeaDialog component.
+ */
 interface EditIdeaDialogProps {
+  /** The idea object to be edited. If null, the dialog will not show data. */
   idea: Idea | null;
+  /** Controls whether the dialog is open. */
   isOpen: boolean;
+  /** Function to call when the dialog should be closed. */
   onClose: () => void;
+  /** Function to call with the updated idea data when the user saves changes. */
   onSave: (updatedIdea: Idea) => void;
 }
 
+/**
+ * A modal dialog that provides a form to edit an idea's title and description.
+ * It is controlled by the `isOpen` prop and populates its form fields based on the `idea` prop.
+ *
+ * @param props - The properties for the component.
+ * @returns A JSX element representing the edit dialog.
+ */
 export function EditIdeaDialog({ idea, isOpen, onClose, onSave }: EditIdeaDialogProps) {
   const [formData, setFormData] = useState<Partial<Idea>>({});
   const { toast } = useToast();
@@ -47,6 +64,7 @@ export function EditIdeaDialog({ idea, isOpen, onClose, onSave }: EditIdeaDialog
       return;
     }
     
+    // The `idea` prop contains the original full object, so we merge the changes.
     onSave({
       ...idea,
       ...formData,

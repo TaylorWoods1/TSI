@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the login page for user authentication.
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +14,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * A page component that provides a login form. It includes a role switcher
+ * to simulate logging in as either an 'employee' or an 'administrator'.
+ */
 export default function LoginPage() {
   const [role, setRole] = useState<'employee' | 'administrator'>('employee');
   const { login } = useAuth();
@@ -24,6 +31,7 @@ export default function LoginPage() {
       description: `You are now logged in as an ${role}.`,
     });
     login(role);
+    // Redirect based on the selected role for this simulation.
     router.push(role === 'administrator' ? '/sessions' : '/dashboard');
   };
 

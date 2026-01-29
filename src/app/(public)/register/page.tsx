@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Defines the registration page for new user sign-ups.
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -6,6 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
+/**
+ * A page component that displays a form for new users to create an account.
+ * Note: The form submission is currently a placeholder.
+ */
 export default function RegisterPage() {
   return (
     <Card className="w-full max-w-sm">

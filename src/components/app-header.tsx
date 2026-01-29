@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the application header, which is primarily visible on mobile devices
+ * and provides access to the navigation menu.
+ */
 'use client';
 
 import {
@@ -12,7 +16,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/lib/auth';
+import { LogoIcon } from './icons/logo-icon';
 
+/**
+ * The main header component for the application.
+ * On larger screens, it's mostly empty, as navigation is handled by the sidebar.
+ * On smaller screens, it contains a "hamburger" menu to toggle the navigation sheet.
+ */
 export function AppHeader() {
   const { user } = useAuth();
 
@@ -31,7 +41,7 @@ export function AppHeader() {
               href="#"
               className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
             >
-              <Package2 className="h-5 w-5 transition-all group-hover:scale-110" />
+              <LogoIcon className="h-5 w-5 transition-all group-hover:scale-110" />
               <span className="sr-only">TSI</span>
             </Link>
             <Link

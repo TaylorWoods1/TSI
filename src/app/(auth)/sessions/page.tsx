@@ -1,6 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  ArrowUpRight,
+  Calendar,
+  MoreHorizontal,
+  PlusCircle,
+} from 'lucide-react';
+import Link from 'next/link';
+
+import { DeleteSessionAlert } from '@/components/delete-session-alert';
+import { EditSessionDialog } from '@/components/edit-session-dialog';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,16 +22,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { mockSessions as initialMockSessions } from '@/lib/data';
-import { cn } from '@/lib/utils';
-import {
-  ArrowUpRight,
-  Calendar,
-  MoreHorizontal,
-  PlusCircle,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,24 +29,30 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { EditSessionDialog } from '@/components/edit-session-dialog';
-import { DeleteSessionAlert } from '@/components/delete-session-alert';
+import { useAuth } from '@/lib/auth';
+import { mockSessions as initialMockSessions } from '@/lib/data';
 import type { IdeationSession } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SessionsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   // Deep copy the initial data to prevent mutation issues with shared mock data
-  const [sessions, setSessions] = useState(() => JSON.parse(JSON.stringify(initialMockSessions)));
+  const [sessions, setSessions] = useState(() =>
+    JSON.parse(JSON.stringify(initialMockSessions))
+  );
 
   // State for the edit dialog
-  const [sessionToEdit, setSessionToEdit] = useState<IdeationSession | null>(null);
+  const [sessionToEdit, setSessionToEdit] = useState<IdeationSession | null>(
+    null
+  );
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // State for the delete alert
-  const [sessionToDelete, setSessionToDelete] = useState<IdeationSession | null>(null);
+  const [sessionToDelete, setSessionToDelete] =
+    useState<IdeationSession | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const getStatusClass = (status: string) => {
@@ -63,26 +69,36 @@ export default function SessionsPage() {
   };
 
   const handleSaveSession = (updatedSession: IdeationSession) => {
-    const isNew = !sessions.some(s => s.sessionId === updatedSession.sessionId);
+    const isNew = !sessions.some(
+      (s) => s.sessionId === updatedSession.sessionId
+    );
     if (isNew) {
-        setSessions(prev => [updatedSession, ...prev]);
+      setSessions((prev) => [updatedSession, ...prev]);
     } else {
-        setSessions(prev => prev.map(s => s.sessionId === updatedSession.sessionId ? updatedSession : s));
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.sessionId === updatedSession.sessionId ? updatedSession : s
+        )
+      );
     }
     toast({
-        title: isNew ? "Session Created" : "Session Updated",
-        description: `The "${updatedSession.name}" session has been saved.`,
+      title: isNew ? 'Session Created' : 'Session Updated',
+      description: `The "${updatedSession.name}" session has been saved.`,
     });
   };
 
   const handleConfirmDelete = () => {
     if (!sessionToDelete) return;
-    const sessionName = sessions.find(s => s.sessionId === sessionToDelete.sessionId)?.name;
-    setSessions(prev => prev.filter(s => s.sessionId !== sessionToDelete.sessionId));
+    const sessionName = sessions.find(
+      (s) => s.sessionId === sessionToDelete.sessionId
+    )?.name;
+    setSessions((prev) =>
+      prev.filter((s) => s.sessionId !== sessionToDelete.sessionId)
+    );
     toast({
-        title: "Session Deleted",
-        description: `The "${sessionName}" session has been removed.`,
-        variant: "destructive"
+      title: 'Session Deleted',
+      description: `The "${sessionName}" session has been removed.`,
+      variant: 'destructive',
     });
   };
 
@@ -99,23 +115,23 @@ export default function SessionsPage() {
     setSessionToEdit(newSession);
     setIsEditOpen(true);
   };
-  
+
   const handleTriggerEdit = (session: IdeationSession) => {
     // This timeout prevents a race condition between the dropdown menu closing
     // and the dialog opening, which was causing the UI to lock.
     setTimeout(() => {
-        setIsCreatingNew(false);
-        setSessionToEdit(session);
-        setIsEditOpen(true);
+      setIsCreatingNew(false);
+      setSessionToEdit(session);
+      setIsEditOpen(true);
     }, 0);
   };
-  
+
   const handleTriggerDelete = (session: IdeationSession) => {
     // This timeout prevents a race condition between the dropdown menu closing
     // and the dialog opening, which was causing the UI to lock.
     setTimeout(() => {
-        setSessionToDelete(session);
-        setIsDeleteOpen(true);
+      setSessionToDelete(session);
+      setIsDeleteOpen(true);
     }, 0);
   };
 
@@ -158,8 +174,15 @@ export default function SessionsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleTriggerEdit(session)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleTriggerDelete(session)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                        <DropdownMenuItem
+                          onClick={() => handleTriggerEdit(session)}
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleTriggerDelete(session)}
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        >
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -167,7 +190,7 @@ export default function SessionsPage() {
                   )}
                 </div>
               </div>
-              <CardDescription className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
+              <CardDescription className="pt-2 text-sm text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 {new Date(session.sessionDate).toLocaleDateString()}
               </CardDescription>
@@ -195,14 +218,14 @@ export default function SessionsPage() {
         ))}
       </div>
 
-       <EditSessionDialog
+      <EditSessionDialog
         session={sessionToEdit}
         isNew={isCreatingNew}
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         onSave={handleSaveSession}
       />
-      
+
       <DeleteSessionAlert
         session={sessionToDelete}
         isOpen={isDeleteOpen}

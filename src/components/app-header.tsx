@@ -1,16 +1,16 @@
 'use client';
 
 import {
+  BrainCircuit,
   Home,
   Package2,
   PanelLeft,
-  ShoppingCart,
-  BrainCircuit,
+  Presentation,
 } from 'lucide-react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 
 export function AppHeader() {
@@ -34,12 +34,18 @@ export function AppHeader() {
               <Package2 className="h-5 w-5 transition-all group-hover:scale-110" />
               <span className="sr-only">TSI</span>
             </Link>
-            <Link href="/dashboard" className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+            >
               <Home className="h-5 w-5" />
               Dashboard
             </Link>
-            <Link href="/sessions" className="flex items-center gap-4 px-2.5 text-foreground">
-              <ShoppingCart className="h-5 w-5" />
+            <Link
+              href="/sessions"
+              className="flex items-center gap-4 px-2.5 text-foreground"
+            >
+              <Presentation className="h-5 w-5" />
               Sessions
             </Link>
             {user?.role === 'administrator' && (

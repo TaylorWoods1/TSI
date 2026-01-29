@@ -1,14 +1,22 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { PageHeader } from '@/components/page-header';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 
 export default function SubmitIdeaPage() {
   const { toast } = useToast();
@@ -37,7 +45,11 @@ export default function SubmitIdeaPage() {
             <div className="grid gap-6">
               <div className="grid gap-3">
                 <Label htmlFor="title">Idea Title</Label>
-                <Input id="title" placeholder="e.g., AI-Powered Workflow Automation" required />
+                <Input
+                  id="title"
+                  placeholder="e.g., AI-Powered Workflow Automation"
+                  required
+                />
                 <p className="text-sm text-muted-foreground">
                   Give your idea a short, descriptive title.
                 </p>
@@ -50,14 +62,17 @@ export default function SubmitIdeaPage() {
                   className="min-h-[150px]"
                   required
                 />
-                 <p className="text-sm text-muted-foreground">
-                  Be as detailed as you can. What problem does this solve? How does it work?
+                <p className="text-sm text-muted-foreground">
+                  Be as detailed as you can. What problem does this solve? How
+                  does it work?
                 </p>
               </div>
               <div className="flex items-center space-x-3">
                 <Switch id="anonymous-submission" />
                 <div className="grid gap-0.5">
-                  <Label htmlFor="anonymous-submission">Submit Anonymously</Label>
+                  <Label htmlFor="anonymous-submission">
+                    Submit Anonymously
+                  </Label>
                   <p className="text-sm text-muted-foreground">
                     If toggled, your name will not be attached to this idea.
                   </p>
@@ -65,9 +80,9 @@ export default function SubmitIdeaPage() {
               </div>
             </div>
           </CardContent>
-          <CardHeader>
+          <CardFooter>
             <Button type="submit">Submit Idea</Button>
-          </CardHeader>
+          </CardFooter>
         </form>
       </Card>
     </div>

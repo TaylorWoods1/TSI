@@ -150,7 +150,7 @@ pub fn apply_ik_options(
         } else {
             1.0e4
         };
-        let tensions = if point_mass || wrench.len() == 3 {
+        let tensions = if point_mass {
             let a = structure_matrix_3(&unit_pulls).map_err(|e| SpyderError::Config(e.to_string()))?;
             let w = if wrench.len() == 3 {
                 wrench.clone()
@@ -167,14 +167,20 @@ pub fn apply_ik_options(
                 other => SpyderError::Config(other.to_string()),
             })?
         } else {
+            // Platform mode always uses the 6×m structure matrix so offset
+            // attachments contribute moment arms even for a 3-vector force wrench.
             let a = structure_matrix_6(&unit_pulls, &moment_arms)
                 .map_err(|e| SpyderError::Config(e.to_string()))?;
-            if wrench.len() != 6 {
-                return Err(SpyderError::Config(
-                    "platform wrench must be 6-vector".into(),
-                ));
-            }
-            solve_tensions(&a, wrench, f_min, f_max).map_err(|e| match e {
+            let w = match wrench.len() {
+                3 => DVector::from_vec(vec![wrench[0], wrench[1], wrench[2], 0.0, 0.0, 0.0]),
+                6 => wrench.clone(),
+                _ => {
+                    return Err(SpyderError::Config(
+                        "platform wrench must be 3-vector (force only) or 6-vector".into(),
+                    ));
+                }
+            };
+            solve_tensions(&a, &w, f_min, f_max).map_err(|e| match e {
                 spyder_statics::TensionError::Infeasible => SpyderError::InfeasibleWrench,
                 spyder_statics::TensionError::Singular => SpyderError::SingularStructure,
                 other => SpyderError::Config(other.to_string()),
@@ -254,5 +260,39 @@ mod tests {
         let t = enriched.tensions.expect("tensions");
         assert_eq!(t.len(), 4);
         assert!(t.iter().all(|x| *x > 0.0));
+    }
+
+    #[test]
+    fn ik_platform_offset_attachments_uses_6dof_structure() {
+        let anchors = rect(2.0, 2.0, 1.0).unwrap();
+        let attachments: Vec<_> = [
+            Vec3::new(0.3, 0.0, 0.0),
+            Vec3::new(-0.3, 0.0, 0.0),
+            Vec3::new(0.0, 0.3, 0.0),
+            Vec3::new(0.0, -0.3, 0.0),
+        ]
+        .into_iter()
+        .map(PlatformAttachment::at)
+        .collect();
+        let pose = Pose::from_position(Vec3::new(0.0, 0.0, 0.0));
+        let res = ik_ideal(&anchors, &attachments, &pose).unwrap();
+        let opts = IkOptions {
+            wrench: Some(DVector::from_vec(vec![0.0, 0.0, -9.81])),
+            f_min: 0.1,
+            f_max: 1.0e3,
+            ..IkOptions::with_defaults()
+        };
+        let enriched =
+            apply_ik_options(res, &anchors, &attachments, &pose, false, &opts).unwrap();
+        let t = enriched.tensions.expect("tensions");
+        assert_eq!(t.len(), 4);
+        assert!(t.iter().all(|x| *x > 0.0));
+        // Offset attachments create asymmetric tensions under gravity.
+        let min = t.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = t.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            (max - min) > 0.01,
+            "expected asymmetric tensions, got {t:?}"
+        );
     }
 }

@@ -8,7 +8,7 @@
 
 use crate::model::{CableContext, CableLength, CableModel, CableModelError, CableResult, Vec3};
 
-/// Sagging cable with mass per length and axial stiffness.
+/// Sagging cable with mass per unit length and axial stiffness.
 #[derive(Clone, Debug)]
 pub struct Sag {
     /// Mass per unit unstrained length (kg/m).
@@ -32,11 +32,11 @@ impl Default for Sag {
 impl Sag {
     /// Irvine unstrained length from horizontal tension `h` (>0), vertical
     /// component `v` at the lower/near end convention, and horizontal/vertical
-    /// spans `l`, `h_span` (here `dx` horizontal distance, `dz` vertical rise).
+    /// spans `dx`, `dz`.
     ///
-    /// Uses the elastic catenary form:
-    /// \(L_0 = \sqrt{l^2 + h_z^2} - \frac{\mu g}{2EA}\left(\ldots\right)\) simplified
-    /// via the common engineering expression from chord + tension.
+    /// Uses the elastic catenary engineering approximation:
+    /// \(L_0 \approx L_{\text{chord}} + \dfrac{w^2 l_h^3}{24 T^2} - \dfrac{TL_{\text{chord}}}{EA}\)
+    /// where sag adds arc length over the chord and elasticity subtracts stretch.
     pub fn irvine_unstrained(
         &self,
         dx_horizontal: f64,
@@ -49,27 +49,57 @@ impl Sag {
                 "horizontal tension component must be > 0 for sag model".into(),
             ));
         }
-        let w = self.mu * self.g; // weight per length
-                                 // Classic Irvine:
-                                 // L0 = (h/w) * (asinh((v)/h) - asinh((v - w*L0)/h)) ... implicit.
-                                 // We use an explicit elastic approximation widely used in CDPR code:
-                                 // L0 = sqrt(dx^2 + dz^2) * (1 - (w^2 * dx^2)/(24 * T^2)) - T*L_geom/(EA)
-                                 // with T = sqrt(h^2 + v^2), iterated once for consistency.
+        let w = self.mu * self.g; // weight per length (N/m)
         let l_geom = (dx_horizontal * dx_horizontal + dz * dz).sqrt();
         if l_geom <= f64::EPSILON {
             return Err(CableModelError::Geometry("zero chord".into()));
         }
         let t = (h * h + v * v).sqrt();
-        // Catenary correction (parabolic sag term) + elastic stretch removal
-        let sag_term = (w * w * dx_horizontal.powi(2) * l_geom) / (24.0 * t * t);
+        // Parabolic sag excess: ΔL ≈ w² l_h³ / (24 T²)
+        let l_h = dx_horizontal.max(1e-9);
+        let sag_term = (w * w * l_h.powi(3)) / (24.0 * t * t);
+        // Elastic stretch removal: L_strained ≈ L₀ + TL/EA  =>  L₀ ≈ L_strained − TL/EA
         let elastic = t * l_geom / self.ea;
-        let l0 = l_geom - sag_term - elastic;
+        let l0 = l_geom + sag_term - elastic;
         if l0 <= 0.0 {
             return Err(CableModelError::Numeric(
                 "computed unstrained length non-positive".into(),
             ));
         }
         Ok(l0)
+    }
+
+    /// Decompose scalar tension along the chord into catenary horizontal `h`
+    /// and vertical `v` components, iterating once for elastic consistency.
+    fn tension_components(
+        &self,
+        rel: &Vec3,
+        l_geom: f64,
+        dx: f64,
+        tension: f64,
+    ) -> CableResult<(f64, f64)> {
+        if l_geom <= f64::EPSILON {
+            return Err(CableModelError::Geometry("zero chord".into()));
+        }
+        // Project total tension onto chord-aligned horizontal/vertical axes.
+        let mut h = if dx > 1e-6 {
+            tension * (dx / l_geom)
+        } else {
+            1e-6
+        };
+        let mut v = tension * (rel.z / l_geom);
+
+        // One refinement pass: re-estimate h from updated unstrained length.
+        if let Ok(l0) = self.irvine_unstrained(dx, rel.z, h, v) {
+            let elastic_ratio = tension / self.ea;
+            let l_strained_est = l0 * (1.0 + elastic_ratio);
+            if l_strained_est > f64::EPSILON {
+                let scale = l_geom / l_strained_est;
+                h = (h * scale).max(1e-6);
+                v *= scale;
+            }
+        }
+        Ok((h, v))
     }
 }
 
@@ -88,14 +118,9 @@ impl CableModel for Sag {
                 "tension must be positive for sag".into(),
             ));
         }
-        // Decompose tension along chord as approximation for h, v
-        let u = rel / l_geom;
-        let horiz = Vec3::new(u.x, u.y, 0.0);
-        let horiz_n = horiz.norm();
-        let h = tension * horiz_n;
-        let v = tension * u.z;
-        let dx = (Vec3::new(rel.x, rel.y, 0.0)).norm();
-        let l0 = self.irvine_unstrained(dx, rel.z, h.max(1e-6), v)?;
+        let dx = Vec3::new(rel.x, rel.y, 0.0).norm();
+        let (h, v) = self.tension_components(&rel, l_geom, dx, tension)?;
+        let l0 = self.irvine_unstrained(dx, rel.z, h, v)?;
         Ok(CableLength {
             geometric: l_geom,
             unstrained: Some(l0),
@@ -109,9 +134,8 @@ mod tests {
     use approx::assert_relative_eq;
 
     #[test]
-    fn sag_unstrained_less_than_geometric_under_tension() {
-        // Under tension, elastic stretch means L0 < geometric chord for taut cables
-        // with the elastic term dominating the small sag correction at high T.
+    fn sag_unstrained_less_than_geometric_under_high_tension() {
+        // High tension: elastic shortening dominates sag excess.
         let sag = Sag {
             mu: 0.02,
             ea: 5.0e4,
@@ -123,15 +147,35 @@ mod tests {
             tension: Some(500.0),
         };
         let len = sag.length(&a, &b, &ctx).unwrap();
-        assert!(len.unstrained.is_some());
         let l0 = len.unstrained.unwrap();
-        // For this high tension, elastic shortening dominates: L0 < L_geom
         assert!(
             l0 < len.geometric,
             "L0={l0} should be < geometric={}",
             len.geometric
         );
-        assert_relative_eq!(len.geometric, (10.0f64.hypot(5.0)), epsilon = 1e-9);
+        assert_relative_eq!(len.geometric, 10.0f64.hypot(5.0), epsilon = 1e-9);
+    }
+
+    #[test]
+    fn sag_unstrained_greater_than_geometric_under_low_tension() {
+        // Low tension / heavy cable: sag excess dominates elasticity.
+        let sag = Sag {
+            mu: 2.0,
+            ea: 1.0e6,
+            g: 9.81,
+        };
+        let a = Vec3::new(0.0, 0.0, 5.0);
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        let ctx = CableContext {
+            tension: Some(50.0),
+        };
+        let len = sag.length(&a, &b, &ctx).unwrap();
+        let l0 = len.unstrained.unwrap();
+        assert!(
+            l0 > len.geometric,
+            "L0={l0} should be > geometric={}",
+            len.geometric
+        );
     }
 
     #[test]

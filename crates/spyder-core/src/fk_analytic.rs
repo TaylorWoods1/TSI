@@ -45,16 +45,21 @@ pub fn fk_analytic_3(
     let c1 = a0 + ex * x + ey * y + ez * z;
     let c2 = a0 + ex * x + ey * y - ez * z;
 
-    let pick = if (c1 - seed).norm_squared() <= (c2 - seed).norm_squared() {
-        c1
+    let d1 = (c1 - seed).norm_squared();
+    let d2 = (c2 - seed).norm_squared();
+    let pick = if (d1 - d2).abs() > 1e-9 {
+        if d1 <= d2 { c1 } else { c2 }
+    } else if (c1.z - c2.z).abs() > 1e-9 {
+        if c1.z >= c2.z { c1 } else { c2 }
     } else {
-        c2
+        c1
     };
 
-    // Residual vs the three lengths
-    let residual = ((pick - a0).norm() - l0).abs()
-        + ((pick - a1).norm() - l1).abs()
-        + ((pick - a2).norm() - l2).abs();
+    // RMS residual vs the three lengths
+    let residual = (((pick - a0).norm() - l0).powi(2)
+        + ((pick - a1).norm() - l1).powi(2)
+        + ((pick - a2).norm() - l2).powi(2))
+    .sqrt();
 
     Ok(FkResult {
         position: pick,
@@ -65,7 +70,7 @@ pub fn fk_analytic_3(
     })
 }
 
-/// True when four anchors form an axis-aligned rectangle in a constant-Z plane.
+/// True when four anchors form a centered axis-aligned rectangle in a constant-Z plane.
 pub fn is_axis_aligned_rect4(exits: &[Vec3]) -> bool {
     if exits.len() != 4 {
         return false;
@@ -74,14 +79,20 @@ pub fn is_axis_aligned_rect4(exits: &[Vec3]) -> bool {
     if exits.iter().any(|e| (e.z - z0).abs() > 1e-9) {
         return false;
     }
-    // Distinct |x| and |y| pairs centered — check unique x and y counts == 2
     let mut xs: Vec<f64> = exits.iter().map(|e| e.x).collect();
     let mut ys: Vec<f64> = exits.iter().map(|e| e.y).collect();
     xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
     ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
     xs.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
     ys.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
-    xs.len() == 2 && ys.len() == 2
+    if xs.len() != 2 || ys.len() != 2 {
+        return false;
+    }
+    // Centered on origin: ±hw and ±hd pairs.
+    (xs[0] + xs[1]).abs() < 1e-9
+        && (ys[0] + ys[1]).abs() < 1e-9
+        && xs[0].abs() > 1e-9
+        && ys[0].abs() > 1e-9
 }
 
 /// Reduced FK for rectangular 4-cable point-mass: use first three for trilateration,
@@ -162,5 +173,16 @@ mod tests {
         // numeric should agree
         let num = fk_point_mass_numeric(&exits, &lengths, Vec3::new(0.0, 0.0, 1.5)).unwrap();
         assert_relative_eq!(num.position.x, got.position.x, epsilon = 1e-5);
+    }
+
+    #[test]
+    fn non_centered_quad_fails_rect4_guard() {
+        let exits = [
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::new(2.0, 0.0, 2.0),
+            Vec3::new(0.0, 2.0, 2.0),
+            Vec3::new(2.0, 2.0, 2.0),
+        ];
+        assert!(!is_axis_aligned_rect4(&exits));
     }
 }

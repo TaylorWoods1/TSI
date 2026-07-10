@@ -5,7 +5,7 @@ use nalgebra::{DMatrix, Vector3};
 /// 3D vector alias.
 pub type Vec3 = Vector3<f64>;
 
-/// Build the 6×m structure matrix \(A^T\) for a spatial platform.
+/// Build the 6×m structure matrix \(A\) for a spatial platform.
 ///
 /// Column \(i\) is \([u_i; b_i \times u_i]\) where \(u_i\) is the unit vector
 /// from platform attachment to base exit (cable pull direction on the platform),

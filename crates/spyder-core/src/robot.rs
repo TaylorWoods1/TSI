@@ -274,6 +274,12 @@ impl Robot {
         crate::jacobian::length_jacobian(&self.anchors, &attachments, pose)
     }
 
+    /// Full 6-DOF platform length Jacobian with \(\dot L \approx J \xi\).
+    pub fn length_jacobian_6(&self, pose: &Pose) -> Result<nalgebra::DMatrix<f64>> {
+        let attachments = self.effective_attachments();
+        crate::jacobian::length_jacobian_platform_6(&self.anchors, &attachments, pose)
+    }
+
     /// Forward kinematics (ideal length measurements).
     ///
     /// Point-mass: analytic fast paths when available, else numeric 3DOF.

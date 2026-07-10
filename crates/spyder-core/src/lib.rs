@@ -24,7 +24,7 @@ pub use fk_analytic::{fk_analytic_3, fk_analytic_rect4, is_axis_aligned_rect4};
 pub use ik::{
     apply_ik_options, ideal_ik_point_mass, ik_ideal, ik_with_model, IkOptions, IkResult,
 };
-pub use jacobian::{length_jacobian, length_jacobian_point_mass};
+pub use jacobian::{length_jacobian, length_jacobian_platform_6, length_jacobian_point_mass};
 pub use pose::Pose;
 pub use preset::{rect, regular_polygon, triangle};
 pub use robot::{CableModelKind, Preset, Robot};

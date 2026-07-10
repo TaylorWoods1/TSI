@@ -60,22 +60,21 @@ impl CableModel for Pulley {
         let radial_vec = rel - self.axis * axial;
         let rho = radial_vec.norm();
 
-        // Distance from attachment to pulley center projected such that a
-        // tangent of length sqrt(rho^2 - r^2) exists in the plane, then
-        // account for axial offset: free length = sqrt(tangent_planar^2 + axial^2)
-        if rho <= self.radius + 1e-12 {
+        // Meridional distance from pulley center to attachment in the plane
+        // containing the axis and the attachment.
+        let meridional = (rho * rho + axial * axial).sqrt();
+        if meridional <= self.radius + 1e-12 {
             return Err(CableModelError::Geometry(
                 "attachment inside pulley cylinder; no real tangent".into(),
             ));
         }
 
-        let planar_tangent = (rho * rho - self.radius * self.radius).sqrt();
-        let free = (planar_tangent * planar_tangent + axial * axial).sqrt();
+        // Free tangent length: sqrt(meridional² − r²)
+        let free = (meridional * meridional - self.radius * self.radius).sqrt();
 
-        // Wrap angle from the radial direction to the tangent touch point.
-        // cos(alpha) = r/rho for the planar geometry; arc = r * acos(r/rho)
-        // (minimal wrap from closest approach — standard first-order pulley term).
-        let alpha = (self.radius / rho).clamp(-1.0, 1.0).acos();
+        // Wrap angle at center from radial toward attachment to tangent point:
+        // cos(α) = r / meridional
+        let alpha = (self.radius / meridional).clamp(-1.0, 1.0).acos();
         let arc = self.radius * alpha;
 
         Ok(CableLength {
@@ -124,6 +123,27 @@ mod tests {
         let b = Vec3::new(0.01, 0.0, 0.0);
         let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
         assert!(pulley.length(&a, &b, &CableContext::default()).is_err());
+    }
+
+    #[test]
+    fn pulley_with_axial_offset_uses_meridional_angle() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(2.0, 0.0, 1.0);
+        let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
+        let plen = pulley
+            .length(&a, &b, &CableContext::default())
+            .unwrap()
+            .geometric;
+        let ideal = Ideal
+            .length(&a, &b, &CableContext::default())
+            .unwrap()
+            .geometric;
+        assert!(plen > ideal);
+        // Meridional distance sqrt(4+1)=sqrt(5); arc = r*acos(r/sqrt(5))
+        let meridional = 5.0f64.sqrt();
+        let expected_arc = 0.05 * (0.05 / meridional).acos();
+        let expected_free = (meridional * meridional - 0.05 * 0.05).sqrt();
+        assert_relative_eq!(plen, expected_free + expected_arc, epsilon = 1e-9);
     }
 
     #[test]

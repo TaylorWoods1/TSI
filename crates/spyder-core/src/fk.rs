@@ -202,6 +202,7 @@ pub fn fk_point_mass_numeric(
     let tol = 1e-12;
     let mut residual = f64::INFINITY;
     let mut iterations = 0;
+    let mut lambda = 1e-3; // Levenberg–Marquardt damping for singular configs
 
     for iter in 0..max_iters {
         iterations = iter + 1;
@@ -225,20 +226,46 @@ pub fn fk_point_mass_numeric(
         }
         residual = residual.sqrt();
 
-        // Solve JᵀJ Δ = Jᵀr  (Gauss-Newton step: p ← p - Δ)
-        let delta = nalgebra::linalg::SVD::new(jtj, true, true)
-            .solve(&jtr, 1e-12)
-            .map_err(|_| SpyderError::SingularStructure)?;
-        p -= delta;
+        let mut a_mat = jtj;
+        for i in 0..3 {
+            a_mat[(i, i)] += lambda;
+        }
+        let delta = match nalgebra::linalg::SVD::new(a_mat, true, true).solve(&jtr, 1e-12) {
+            Ok(d) => d,
+            Err(_) => {
+                lambda *= 10.0;
+                if lambda > 1e8 {
+                    break;
+                }
+                continue;
+            }
+        };
 
-        if delta.norm() < tol || residual < 1e-10 {
-            return Ok(FkResult {
-                position: p,
-                orientation: UnitQuat::identity(),
-                residual,
-                iterations,
-                method: FkMethod::NumericPointMass,
-            });
+        let candidate = p - delta;
+        let mut res_c = 0.0;
+        for (a, &l_meas) in anchors.iter().zip(lengths.iter()) {
+            let err = (candidate - a).norm() - l_meas;
+            res_c += err * err;
+        }
+        res_c = res_c.sqrt();
+
+        if res_c < residual {
+            p = candidate;
+            lambda = (lambda * 0.3).max(1e-9);
+            if delta.norm() < tol || res_c < 1e-10 {
+                return Ok(FkResult {
+                    position: p,
+                    orientation: UnitQuat::identity(),
+                    residual: res_c,
+                    iterations,
+                    method: FkMethod::NumericPointMass,
+                });
+            }
+        } else {
+            lambda *= 4.0;
+            if lambda > 1e8 {
+                break;
+            }
         }
     }
 

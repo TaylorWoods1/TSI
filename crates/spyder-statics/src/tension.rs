@@ -60,7 +60,7 @@ fn clamp_vec(f: &DVector<f64>, f_min: f64, f_max: f64) -> DVector<f64> {
 }
 
 /// Bounded least-squares fallback: minimize \(\|A f + w\|^2\) with box constraints
-/// via projected gradient descent.
+/// via projected gradient descent (heuristic feasibility search, not a true QP).
 pub fn qp_tensions(
     a: &DMatrix<f64>,
     wrench: &DVector<f64>,
@@ -84,22 +84,33 @@ pub fn qp_tensions(
     }
 
     let ata = a.transpose() * a;
-    // Lipschitz-ish step: 1 / (||A||_F^2 + eps)
+    // Lipschitz step: 1 / (||A||_F^2 + eps)
     let fro2: f64 = a.iter().map(|x| x * x).sum();
-    let alpha = 1.0 / (fro2 + 1e-9);
+    let mut alpha = 1.0 / (fro2 + 1e-9);
     let tol = 1e-6 * (1.0 + wrench.norm());
-    let max_iter = 5000;
+    let max_iter = 8000;
 
-    for _ in 0..max_iter {
+    for _iter in 0..max_iter {
         let residual = a * &f + wrench;
         if residual.norm() <= tol {
             return Ok(f);
         }
         let grad = &ata * &f + a.transpose() * wrench;
-        f = clamp_vec(&(&f - alpha * grad), f_min, f_max);
+        let f_next = clamp_vec(&(&f - alpha * grad), f_min, f_max);
+        let res_next = (a * &f_next + wrench).norm();
+        let res_cur = residual.norm();
+        if res_next < res_cur {
+            f = f_next;
+            alpha = (alpha * 1.05).min(1.0 / (fro2 + 1e-9));
+        } else {
+            alpha *= 0.5;
+            if alpha < 1e-12 {
+                break;
+            }
+        }
     }
     let residual = a * &f + wrench;
-    if residual.norm() <= tol * 10.0 {
+    if residual.norm() <= tol * 5.0 {
         Ok(f)
     } else {
         Err(TensionError::Infeasible)

@@ -14,7 +14,8 @@ pub struct Calibration {
     pub home_lengths_m: Vec<f64>,
     /// Winch drum radius used for step mapping (meters).
     pub drum_radius_m: f64,
-    /// Motor steps per winch revolution (after gearing).
+    /// Motor steps per motor-shaft revolution (includes gearbox ratio).
+    /// When constructing [`spyder_actuation::Motor`], use `Motor::new(steps_per_rev, 1.0)`.
     pub steps_per_rev: f64,
     /// Optional measured anchor exits overriding the robot preset.
     pub anchors_m: Option<Vec<[f64; 3]>>,

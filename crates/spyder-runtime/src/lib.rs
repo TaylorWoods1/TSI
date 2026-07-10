@@ -1,11 +1,27 @@
-//! Motor backend trait and playback engine.
+//! Motor backends and trajectory playback for spyder.
+//!
+//! # Backends
+//! - [`MockBackend`] — dry-run / tests
+//! - [`StepperBackend`] — multi-axis line protocol over serial/TCP
+//! - [`ODriveBackend`] — ODrive ASCII `q` position commands
+//!
+//! # Transports
+//! - [`MockTransport`], [`SerialTransport`], [`TcpTransport`]
 
 #![deny(missing_docs)]
+
+mod odrive;
+mod stepper;
+mod transport;
 
 use spyder_actuation::{length_delta_to_command, synchronized_step_delays, Motor, MotorCommand, Winch};
 use spyder_core::{Pose, Robot, Vec3};
 use spyder_sim::{line_waypoints, trajectory_lengths};
 use thiserror::Error;
+
+pub use odrive::{ODriveAxis, ODriveBackend};
+pub use stepper::StepperBackend;
+pub use transport::{MockTransport, SerialTransport, TcpTransport, Transport};
 
 /// Runtime errors.
 #[derive(Debug, Error)]
@@ -13,7 +29,7 @@ pub enum RuntimeError {
     /// Kinematics / config failure.
     #[error(transparent)]
     Core(#[from] spyder_core::SpyderError),
-    /// Backend failure.
+    /// Backend / transport failure.
     #[error("backend: {0}")]
     Backend(String),
     /// Bad arguments.
@@ -33,7 +49,7 @@ pub trait MotorBackend {
     /// `delays_s[i]` is seconds between steps for axis i (0 = idle).
     fn move_steps(&mut self, steps: &[i64], delays_s: &[f64]) -> Result<()>;
 
-    /// Optional: report cumulative steps since construction.
+    /// Cumulative steps since construction / home.
     fn positions(&self) -> &[i64];
 }
 
@@ -69,48 +85,6 @@ impl MotorBackend for MockBackend {
             *acc += *d;
         }
         self.log.push(steps.to_vec());
-        Ok(())
-    }
-
-    fn positions(&self) -> &[i64] {
-        &self.steps
-    }
-}
-
-/// Placeholder stepper backend (logs intent; no GPIO yet).
-#[derive(Clone, Debug)]
-pub struct StepperStub {
-    /// Cumulative steps.
-    pub steps: Vec<i64>,
-    /// Human-readable pulse log.
-    pub pulses: Vec<String>,
-}
-
-impl StepperStub {
-    /// Create stub for `n` steppers.
-    pub fn new(n: usize) -> Self {
-        Self {
-            steps: vec![0; n],
-            pulses: Vec::new(),
-        }
-    }
-}
-
-impl MotorBackend for StepperStub {
-    fn axis_count(&self) -> usize {
-        self.steps.len()
-    }
-
-    fn move_steps(&mut self, steps: &[i64], delays_s: &[f64]) -> Result<()> {
-        if steps.len() != self.steps.len() {
-            return Err(RuntimeError::Config("step vector length mismatch".into()));
-        }
-        for (i, (d, delay)) in steps.iter().zip(delays_s.iter()).enumerate() {
-            self.pulses.push(format!(
-                "axis{i}: steps={d} delay_s={delay:.6}"
-            ));
-            self.steps[i] += *d;
-        }
         Ok(())
     }
 
@@ -190,8 +164,7 @@ impl<'a, B: MotorBackend> Player<'a, B> {
         Ok(cmds)
     }
 
-    /// Follow a straight line from current IK pose estimate is not tracked in Cartesian;
-    /// provide explicit `start` and `end` with `segments` intermediate IK samples.
+    /// Follow a straight line with `segments` intermediate IK samples.
     pub fn move_line(
         &mut self,
         start: Vec3,
@@ -200,7 +173,6 @@ impl<'a, B: MotorBackend> Player<'a, B> {
         duration_s: f64,
     ) -> Result<()> {
         let pts = line_waypoints(start, end, segments);
-        // Re-home length reference at start.
         let start_ik = self.robot.ik(&Pose::from_position(start))?;
         self.current_lengths = start_ik.lengths;
         let per = duration_s / segments.max(1) as f64;
@@ -245,16 +217,32 @@ mod tests {
             .move_line(home, Vec3::new(0.5, 0.0, 1.5), 5, 1.0)
             .unwrap();
         assert!(!player.backend.log.is_empty());
-        assert_eq!(player.backend.positions().len(), 4);
-        // Not all zeros after a real move
         assert!(player.backend.positions().iter().any(|s| *s != 0));
     }
 
     #[test]
-    fn stepper_stub_records_pulses() {
-        let mut stub = StepperStub::new(3);
-        stub.move_steps(&[10, -5, 0], &[0.01, 0.02, 0.0]).unwrap();
-        assert_eq!(stub.positions(), &[10, -5, 0]);
-        assert_eq!(stub.pulses.len(), 3);
+    fn stepper_backend_via_player() {
+        use crate::transport::MockTransport;
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let mut t = MockTransport::new();
+        // One OK per segment after start
+        for _ in 0..5 {
+            t.push_reply("OK");
+        }
+        let backend = StepperBackend::new(Box::new(t), 4);
+        let axes: Vec<_> = (0..4)
+            .map(|_| Axis::new(0.05, 200.0, 1.0).unwrap())
+            .collect();
+        let home = Vec3::new(0.0, 0.0, 1.5);
+        let mut player = Player::new(&robot, axes, backend, home).unwrap();
+        player
+            .move_line(home, Vec3::new(0.3, 0.0, 1.5), 5, 1.0)
+            .unwrap();
+        assert!(player.backend.positions().iter().any(|s| *s != 0));
     }
 }

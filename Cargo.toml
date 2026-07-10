@@ -8,6 +8,7 @@ members = [
     "crates/spyder-cli",
     "crates/spyder-sim",
     "crates/spyder-runtime",
+    "crates/spyder-stepper-sim",
 ]
 exclude = ["python"]
 

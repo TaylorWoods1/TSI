@@ -31,6 +31,28 @@ print(r.ik(0.5, -0.2, 2.0))
 print(r.workspace_fraction(-2, 2, -2, 2, 0.5, 4, 6, 6, 5))
 ```
 
+## Hardware
+
+See [docs/hardware.md](docs/hardware.md).
+
+```bash
+# Dry-run
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 --backend mock
+
+# TCP firmware simulator
+cargo run -p spyder-stepper-sim -- 9002
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
+  --backend stepper --device 127.0.0.1:9002
+
+# Real Arduino steppers / ODrive
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
+  --backend stepper --device /dev/ttyUSB0 --baud 115200
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 0.5,0,2 5 \
+  --backend odrive --device /dev/ttyACM0
+```
+
+Firmware: `firmware/spyder_stepper/spyder_stepper.ino`
+
 ## Crates
 
 | Crate | Role |
@@ -40,7 +62,8 @@ print(r.workspace_fraction(-2, 2, -2, 2, 0.5, 4, 6, 6, 5))
 | `spyder-statics` | Structure matrix + closed-form tensions |
 | `spyder-actuation` | Winch / motor step mapping |
 | `spyder-sim` | Workspace sampling, CSV/JSON/HTML export, trajectories |
-| `spyder-runtime` | `MotorBackend`, `MockBackend`, `StepperStub`, `Player` |
+| `spyder-runtime` | `MotorBackend`, mock / stepper / ODrive, `Player` |
+| `spyder-stepper-sim` | TCP firmware simulator |
 | `spyder-cli` | `ik` / `fk` / `workspace` / `play` |
 | `python/` | PyO3 bindings |
 

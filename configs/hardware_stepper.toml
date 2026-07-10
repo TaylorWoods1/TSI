@@ -1,0 +1,19 @@
+# Example hardware section for a 4-winch stepper rig
+# Use with: spyder play configs/rect_4.toml ... --backend stepper --device /dev/ttyUSB0
+
+preset = "rect"
+width = 10.0
+depth = 6.0
+height = 8.0
+point_mass = true
+
+[home]
+x = 0.0
+y = 0.0
+z = 2.0
+
+[actuation]
+drum_radius_m = 0.05
+steps_per_rev = 200
+gear_ratio = 1.0
+baud = 115200

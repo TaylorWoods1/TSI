@@ -12,6 +12,7 @@ spyder-sim = { path = "../spyder-sim" }
 nalgebra = { workspace = true }
 thiserror = { workspace = true }
 approx = { workspace = true }
+serialport = "=4.2.2"
 
 [dev-dependencies]
 approx = { workspace = true }

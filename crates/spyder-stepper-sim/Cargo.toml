@@ -1,0 +1,10 @@
+[package]
+name = "spyder-stepper-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TCP simulator for spyder stepper firmware protocol"
+
+[[bin]]
+name = "spyder-stepper-sim"
+path = "src/main.rs"

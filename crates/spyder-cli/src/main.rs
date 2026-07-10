@@ -1,10 +1,10 @@
-//! Spyder CLI (minimal, no clap/toml deps for older Rust toolchains).
+//! Spyder CLI
 //!
 //! Usage:
 //!   spyder ik <config.toml> <x,y,z>
 //!   spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]
 //!   spyder workspace <config.toml> [out_prefix]
-//!   spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]
+//!   spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments] [--backend mock|stepper|odrive] [--device PATH|host:port] [--baud N]
 
 use std::env;
 use std::fs;
@@ -15,7 +15,7 @@ use spyder_core::{Anchor, Pose, Preset, Robot, Vec3};
 
 fn usage() -> ! {
     eprintln!(
-        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]\n  spyder workspace <config.toml> [out_prefix]\n  spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]"
+        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]\n  spyder workspace <config.toml> [out_prefix]\n  spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments] [--backend mock|stepper|odrive] [--device PATH|host:port] [--baud N]"
     );
     process::exit(2);
 }
@@ -35,7 +35,6 @@ fn parse_list(s: &str) -> Vec<f64> {
         .collect()
 }
 
-/// Extremely small TOML subset reader for our configs.
 fn robot_from_toml(text: &str) -> Robot {
     let mut preset = String::from("rect");
     let mut width = None;
@@ -135,13 +134,42 @@ fn default_workspace(robot: &Robot) -> spyder_sim::WorkspaceReport {
     sample_wrench_feasible(robot, &box_, w, 0.5, 500.0)
 }
 
+fn take_flag(args: &mut Vec<String>, name: &str) -> Option<String> {
+    if let Some(i) = args.iter().position(|a| a == name) {
+        args.remove(i);
+        if i < args.len() {
+            return Some(args.remove(i));
+        }
+    }
+    None
+}
+
+fn open_transport(
+    device: &str,
+    baud: u32,
+) -> spyder_runtime::Result<Box<dyn spyder_runtime::Transport>> {
+    use spyder_runtime::{SerialTransport, TcpTransport};
+    if device.contains(':') && !device.starts_with('/') && !device.starts_with("COM") {
+        // host:port
+        Ok(Box::new(TcpTransport::connect(device)?))
+    } else {
+        Ok(Box::new(SerialTransport::open(device, baud)?))
+    }
+}
+
 fn main() {
-    let mut args = env::args().skip(1);
-    let cmd = args.next().unwrap_or_else(|| usage());
+    let mut args: Vec<String> = env::args().skip(1).collect();
+    if args.is_empty() {
+        usage();
+    }
+    let cmd = args.remove(0);
     match cmd.as_str() {
         "ik" => {
-            let cfg_path = args.next().unwrap_or_else(|| usage());
-            let xyz = args.next().unwrap_or_else(|| usage());
+            if args.len() < 2 {
+                usage();
+            }
+            let cfg_path = args.remove(0);
+            let xyz = args.remove(0);
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
             let pose = Pose::from_position(parse_xyz(&xyz));
@@ -156,9 +184,16 @@ fn main() {
             println!("]");
         }
         "fk" => {
-            let cfg_path = args.next().unwrap_or_else(|| usage());
-            let lengths = args.next().unwrap_or_else(|| usage());
-            let seed = args.next().unwrap_or_else(|| "0,0,1".to_string());
+            if args.len() < 2 {
+                usage();
+            }
+            let cfg_path = args.remove(0);
+            let lengths = args.remove(0);
+            let seed = if args.is_empty() {
+                "0,0,1".into()
+            } else {
+                args.remove(0)
+            };
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
             let lens = parse_list(&lengths);
@@ -169,10 +204,15 @@ fn main() {
             );
         }
         "workspace" => {
-            let cfg_path = args.next().unwrap_or_else(|| usage());
-            let out_prefix = args
-                .next()
-                .unwrap_or_else(|| "artifacts/workspace".to_string());
+            if args.is_empty() {
+                usage();
+            }
+            let cfg_path = args.remove(0);
+            let out_prefix = if args.is_empty() {
+                "artifacts/workspace".into()
+            } else {
+                args.remove(0)
+            };
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
             let report = default_workspace(&robot);
@@ -197,29 +237,79 @@ fn main() {
             println!("wrote {out_prefix}.{{csv,json,html}}");
         }
         "play" => {
-            use spyder_runtime::{Axis, MockBackend, Player};
-            let cfg_path = args.next().unwrap_or_else(|| usage());
-            let start = parse_xyz(&args.next().unwrap_or_else(|| usage()));
-            let end = parse_xyz(&args.next().unwrap_or_else(|| usage()));
-            let segments: usize = args
-                .next()
-                .unwrap_or_else(|| "10".into())
+            use spyder_runtime::{
+                Axis, MockBackend, MotorBackend, ODriveAxis, ODriveBackend, Player,
+                StepperBackend,
+            };
+            let backend_name = take_flag(&mut args, "--backend").unwrap_or_else(|| "mock".into());
+            let device = take_flag(&mut args, "--device");
+            let baud: u32 = take_flag(&mut args, "--baud")
+                .unwrap_or_else(|| "115200".into())
                 .parse()
-                .expect("segments");
+                .expect("baud");
+            if args.len() < 3 {
+                usage();
+            }
+            let cfg_path = args.remove(0);
+            let start = parse_xyz(&args.remove(0));
+            let end = parse_xyz(&args.remove(0));
+            let segments: usize = if args.is_empty() {
+                10
+            } else {
+                args.remove(0).parse().expect("segments")
+            };
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
             let n = robot.anchors.len();
             let axes: Vec<_> = (0..n)
                 .map(|_| Axis::new(0.05, 200.0, 1.0).expect("axis"))
                 .collect();
-            let mut player =
-                Player::new(&robot, axes, MockBackend::new(n), start).expect("player");
-            player.move_line(start, end, segments, 2.0).expect("play");
-            println!(
-                "play done segments={segments} final_steps={:?} moves={}",
-                player.backend.steps,
-                player.backend.log.len()
-            );
+
+            match backend_name.as_str() {
+                "mock" => {
+                    let mut player =
+                        Player::new(&robot, axes, MockBackend::new(n), start).expect("player");
+                    player.move_line(start, end, segments, 2.0).expect("play");
+                    println!(
+                        "play backend=mock segments={segments} final_steps={:?} moves={}",
+                        player.backend.steps,
+                        player.backend.log.len()
+                    );
+                }
+                "stepper" => {
+                    let device = device.expect("--device required for stepper (e.g. /dev/ttyUSB0 or 127.0.0.1:9002)");
+                    // Discard banner if any
+                    let mut transport = open_transport(&device, baud).expect("transport");
+                    // Read optional greeting
+                    let _ = transport.read_line();
+                    let backend = StepperBackend::new(transport, n);
+                    let mut player = Player::new(&robot, axes, backend, start).expect("player");
+                    player.move_line(start, end, segments, 2.0).expect("play");
+                    println!(
+                        "play backend=stepper device={device} segments={segments} final_steps={:?}",
+                        player.backend.positions()
+                    );
+                }
+                "odrive" => {
+                    let device = device.expect("--device required for odrive");
+                    let transport = open_transport(&device, baud).expect("transport");
+                    let oaxes: Vec<_> = (0..n)
+                        .map(|i| ODriveAxis::new((i % 2) as u8, 200.0))
+                        .collect();
+                    let mut backend = ODriveBackend::new(transport, oaxes);
+                    backend.enter_closed_loop().expect("closed loop");
+                    let mut player = Player::new(&robot, axes, backend, start).expect("player");
+                    player.move_line(start, end, segments, 2.0).expect("play");
+                    println!(
+                        "play backend=odrive device={device} segments={segments} final_steps={:?}",
+                        player.backend.positions()
+                    );
+                }
+                other => {
+                    eprintln!("unknown backend {other}");
+                    usage();
+                }
+            }
         }
         _ => usage(),
     }

@@ -2,7 +2,8 @@
 
 #![deny(missing_docs)]
 
-/// Placeholder until cable models are implemented.
-pub fn cables_ok() -> bool {
-    true
-}
+pub mod ideal;
+pub mod model;
+
+pub use ideal::Ideal;
+pub use model::{CableContext, CableLength, CableModel, CableModelError, CableResult, Vec3};

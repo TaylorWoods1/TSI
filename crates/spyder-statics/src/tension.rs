@@ -59,8 +59,92 @@ fn clamp_vec(f: &DVector<f64>, f_min: f64, f_max: f64) -> DVector<f64> {
     DVector::from_iterator(f.len(), f.iter().map(|x| x.clamp(f_min, f_max)))
 }
 
-/// Bounded least-squares fallback: minimize \(\|A f + w\|^2\) with box constraints
-/// via projected gradient descent (heuristic feasibility search, not a true QP).
+/// Active-set box-constrained least squares: minimize ||Af + wrench||² s.t. box bounds.
+pub fn active_set_box_tensions(
+    a: &DMatrix<f64>,
+    wrench: &DVector<f64>,
+    f_min: f64,
+    f_max: f64,
+) -> Result<DVector<f64>, TensionError> {
+    if a.nrows() != wrench.len() {
+        return Err(TensionError::Config(
+            "wrench dimension must match structure rows".into(),
+        ));
+    }
+    if f_min > f_max {
+        return Err(TensionError::Config("f_min > f_max".into()));
+    }
+    let m = a.ncols();
+    let tol = 1e-6 * (1.0 + wrench.norm());
+    let mut f = DVector::from_element(m, 0.5 * (f_min + f_max));
+    let mut at_low = vec![false; m];
+    let mut at_high = vec![false; m];
+
+    let svd_full = a.clone().svd(true, true);
+    if let Ok(f0) = svd_full.solve(&(-wrench), 1e-10) {
+        f = clamp_vec(&f0, f_min, f_max);
+        if (a * &f + wrench).norm() <= tol {
+            return Ok(f);
+        }
+    }
+
+    for _pass in 0..m * 8 {
+        let residual = a * &f + wrench;
+        if residual.norm() <= tol {
+            return Ok(f);
+        }
+
+        let mut changed = false;
+        for i in 0..m {
+            at_low[i] = f[i] <= f_min + 1e-9;
+            at_high[i] = f[i] >= f_max - 1e-9;
+        }
+
+        let free: Vec<usize> = (0..m)
+            .filter(|&i| !at_low[i] && !at_high[i])
+            .collect();
+        if free.is_empty() {
+            break;
+        }
+
+        let n_free = free.len();
+        let mut a_free = DMatrix::zeros(a.nrows(), n_free);
+        for (col, &idx) in free.iter().enumerate() {
+            for row in 0..a.nrows() {
+                a_free[(row, col)] = a[(row, idx)];
+            }
+        }
+        let mut rhs = -wrench.clone();
+        for (idx, fi) in f.iter().enumerate() {
+            if at_low[idx] || at_high[idx] {
+                for row in 0..a.nrows() {
+                    rhs[row] -= a[(row, idx)] * fi;
+                }
+            }
+        }
+
+        let svd = a_free.svd(true, true);
+        if let Ok(delta) = svd.solve(&rhs, 1e-10) {
+            for (col, &idx) in free.iter().enumerate() {
+                f[idx] = delta[col].clamp(f_min, f_max);
+            }
+            changed = true;
+        }
+
+        if !changed {
+            break;
+        }
+    }
+
+    let residual = a * &f + wrench;
+    if residual.norm() <= tol * 5.0 {
+        Ok(f)
+    } else {
+        Err(TensionError::Infeasible)
+    }
+}
+
+/// Bounded least-squares fallback: projected gradient, then active-set refinement.
 pub fn qp_tensions(
     a: &DMatrix<f64>,
     wrench: &DVector<f64>,
@@ -111,13 +195,12 @@ pub fn qp_tensions(
     }
     let residual = a * &f + wrench;
     if residual.norm() <= tol * 5.0 {
-        Ok(f)
-    } else {
-        Err(TensionError::Infeasible)
+        return active_set_box_tensions(a, wrench, f_min, f_max);
     }
+    active_set_box_tensions(a, wrench, f_min, f_max)
 }
 
-/// Closed-form first; on bound failure, try [`qp_tensions`].
+/// Closed-form first; on bound failure, try active-set box LS.
 pub fn solve_tensions(
     a: &DMatrix<f64>,
     wrench: &DVector<f64>,
@@ -126,7 +209,7 @@ pub fn solve_tensions(
 ) -> Result<DVector<f64>, TensionError> {
     match closed_form_tensions(a, wrench, f_min, f_max) {
         Ok(f) => Ok(f),
-        Err(TensionError::Infeasible) => qp_tensions(a, wrench, f_min, f_max),
+        Err(TensionError::Infeasible) => active_set_box_tensions(a, wrench, f_min, f_max),
         Err(e) => Err(e),
     }
 }

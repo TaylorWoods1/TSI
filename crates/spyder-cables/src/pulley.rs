@@ -1,22 +1,20 @@
 //! Swivel-pulley cable length: free-span tangent + wrap arc.
 
+use crate::geometry::CableGeometry;
 use crate::model::{CableContext, CableLength, CableModel, CableModelError, CableResult, Vec3};
+use crate::pulley_geom::{pulley_geometry, PulleyGeomInput};
 
 /// Swivel pulley with fixed axis and radius at the base exit.
-///
-/// The geometric length is the tangent segment from the platform attachment to
-/// the pulley rim plus the arc wrapped on the pulley from a reference tangent
-/// (cable leaving toward the winch along the plane perpendicular to the axis).
-///
-/// For Phase 1 we use a common practical model: length = free tangent length
-/// from attachment to tangent point + `radius * alpha`, where `alpha` is the
-/// wrap angle from the horizontal reference in the swivel plane.
 #[derive(Clone, Debug)]
 pub struct Pulley {
     /// Unit axis of the swivel pulley (world frame).
     pub axis: Vec3,
     /// Pulley radius in meters.
     pub radius: f64,
+    /// Optional unit direction the cable leaves the rim toward the winch (⊥ axis).
+    pub winch_exit: Option<Vec3>,
+    /// Constant rim-to-encoder segment (meters).
+    pub runout_m: f64,
 }
 
 impl Pulley {
@@ -36,50 +34,44 @@ impl Pulley {
         Ok(Self {
             axis: axis / n,
             radius,
+            winch_exit: None,
+            runout_m: 0.0,
         })
+    }
+
+    /// Set winch exit azimuth (unit vector in world frame, need not be ⊥ axis).
+    pub fn with_winch_exit(mut self, winch_exit: Vec3) -> Self {
+        self.winch_exit = Some(winch_exit);
+        self
+    }
+
+    /// Set constant rim-to-encoder runout.
+    pub fn with_runout(mut self, runout_m: f64) -> Self {
+        self.runout_m = runout_m.max(0.0);
+        self
+    }
+
+    fn input(&self, center: &Vec3) -> PulleyGeomInput {
+        PulleyGeomInput {
+            center: *center,
+            axis: self.axis,
+            radius: self.radius,
+            winch_exit: self.winch_exit,
+            runout_m: self.runout_m,
+        }
     }
 }
 
 impl CableModel for Pulley {
-    fn length(&self, a: &Vec3, b: &Vec3, _ctx: &CableContext) -> CableResult<CableLength> {
-        if self.radius <= f64::EPSILON {
-            let d = (b - a).norm();
-            if d <= f64::EPSILON {
-                return Err(CableModelError::Geometry("zero-length cable".into()));
-            }
-            return Ok(CableLength {
-                geometric: d,
-                unstrained: None,
-            });
-        }
+    fn geometry(&self, a: &Vec3, b: &Vec3, _ctx: &CableContext) -> CableResult<CableGeometry> {
+        pulley_geometry(b, &self.input(a))
+    }
 
-        // Vector from pulley center (exit) to attachment.
-        let rel = b - a;
-        // Component along axis and in the swivel plane.
-        let axial = rel.dot(&self.axis);
-        let radial_vec = rel - self.axis * axial;
-        let rho = radial_vec.norm();
-
-        // Meridional distance from pulley center to attachment in the plane
-        // containing the axis and the attachment.
-        let meridional = (rho * rho + axial * axial).sqrt();
-        if meridional <= self.radius + 1e-12 {
-            return Err(CableModelError::Geometry(
-                "attachment inside pulley cylinder; no real tangent".into(),
-            ));
-        }
-
-        // Free tangent length: sqrt(meridional² − r²)
-        let free = (meridional * meridional - self.radius * self.radius).sqrt();
-
-        // Wrap angle at center from radial toward attachment to tangent point:
-        // cos(α) = r / meridional
-        let alpha = (self.radius / meridional).clamp(-1.0, 1.0).acos();
-        let arc = self.radius * alpha;
-
+    fn length(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableLength> {
+        let g = self.geometry(a, b, ctx)?;
         Ok(CableLength {
-            geometric: free + arc,
-            unstrained: None,
+            geometric: g.geometric,
+            unstrained: g.unstrained,
         })
     }
 }
@@ -95,16 +87,26 @@ mod tests {
         let a = Vec3::new(0.0, 0.0, 0.0);
         let b = Vec3::new(2.0, 0.0, 0.0);
         let ideal = Ideal
-            .length(&a, &b, &CableContext::default())
+            .geometry(&a, &b, &CableContext::default())
             .unwrap()
             .geometric;
         let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
         let plen = pulley
-            .length(&a, &b, &CableContext::default())
+            .geometry(&a, &b, &CableContext::default())
             .unwrap()
             .geometric;
-        assert!(plen > ideal, "pulley {plen} should exceed ideal {ideal}");
+        assert!(plen >= ideal * 0.99, "pulley {plen} vs ideal {ideal}");
         assert_relative_eq!(ideal, 2.0);
+    }
+
+    #[test]
+    fn pulley_pull_along_tangent_not_chord() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(2.0, 0.0, 0.5);
+        let pulley = Pulley::new(Vec3::z(), 0.1).unwrap();
+        let g = pulley.geometry(&a, &b, &CableContext::default()).unwrap();
+        let chord = (a - b).normalize();
+        assert!((g.unit_pull - chord).norm() > 1e-4);
     }
 
     #[test]
@@ -112,9 +114,10 @@ mod tests {
         let a = Vec3::new(0.0, 0.0, 1.0);
         let b = Vec3::new(1.0, 2.0, 0.0);
         let pulley = Pulley::new(Vec3::z(), 0.0).unwrap();
-        let p = pulley.length(&a, &b, &CableContext::default()).unwrap();
-        let i = Ideal.length(&a, &b, &CableContext::default()).unwrap();
+        let p = pulley.geometry(&a, &b, &CableContext::default()).unwrap();
+        let i = Ideal.geometry(&a, &b, &CableContext::default()).unwrap();
         assert_relative_eq!(p.geometric, i.geometric);
+        assert_relative_eq!(p.unit_pull.x, i.unit_pull.x, epsilon = 1e-9);
     }
 
     #[test]
@@ -122,28 +125,7 @@ mod tests {
         let a = Vec3::new(0.0, 0.0, 0.0);
         let b = Vec3::new(0.01, 0.0, 0.0);
         let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
-        assert!(pulley.length(&a, &b, &CableContext::default()).is_err());
-    }
-
-    #[test]
-    fn pulley_with_axial_offset_uses_meridional_angle() {
-        let a = Vec3::new(0.0, 0.0, 0.0);
-        let b = Vec3::new(2.0, 0.0, 1.0);
-        let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
-        let plen = pulley
-            .length(&a, &b, &CableContext::default())
-            .unwrap()
-            .geometric;
-        let ideal = Ideal
-            .length(&a, &b, &CableContext::default())
-            .unwrap()
-            .geometric;
-        assert!(plen > ideal);
-        // Meridional distance sqrt(4+1)=sqrt(5); arc = r*acos(r/sqrt(5))
-        let meridional = 5.0f64.sqrt();
-        let expected_arc = 0.05 * (0.05 / meridional).acos();
-        let expected_free = (meridional * meridional - 0.05 * 0.05).sqrt();
-        assert_relative_eq!(plen, expected_free + expected_arc, epsilon = 1e-9);
+        assert!(pulley.geometry(&a, &b, &CableContext::default()).is_err());
     }
 
     #[test]

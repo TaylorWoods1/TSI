@@ -29,9 +29,6 @@ impl std::fmt::Display for RestraintClass {
 }
 
 /// Classify a CDPR by cable count and DOF.
-///
-/// - Point-mass translation: `n = 3`
-/// - Rigid platform (spatial): `n = 6`
 pub fn classify_restraint(m: usize, n: usize) -> Result<RestraintClass, String> {
     if m == 0 {
         return Err("need at least one cable".into());
@@ -46,6 +43,19 @@ pub fn classify_restraint(m: usize, n: usize) -> Result<RestraintClass, String> 
     } else {
         RestraintClass::Rrpm
     })
+}
+
+/// Classify using cable count and measured structure-matrix rank.
+pub fn classify_restraint_ranked(m: usize, n: usize, rank: usize) -> Result<RestraintClass, String> {
+    if rank < n {
+        Ok(RestraintClass::Irpm)
+    } else if m == n && rank == n {
+        Ok(RestraintClass::Crpm)
+    } else if m > n && rank >= n {
+        Ok(RestraintClass::Rrpm)
+    } else {
+        classify_restraint(m, n)
+    }
 }
 
 #[cfg(test)]

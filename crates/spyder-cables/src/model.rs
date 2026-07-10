@@ -1,5 +1,7 @@
 //! Shared cable model trait and length result types.
 
+use crate::geometry::CableGeometry;
+
 use nalgebra::Vector3;
 
 /// 3D vector alias (meters) used by cable models.
@@ -42,4 +44,13 @@ pub type CableResult<T> = std::result::Result<T, CableModelError>;
 pub trait CableModel {
     /// Compute cable length between base exit `a` and platform attachment `b` (world).
     fn length(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableLength>;
+
+    /// Full geometry including unit pull direction at the attachment.
+    fn geometry(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableGeometry> {
+        let len = self.length(a, b, ctx)?;
+        let mut g = CableGeometry::ideal(a, b)?;
+        g.geometric = len.geometric;
+        g.unstrained = len.unstrained;
+        Ok(g)
+    }
 }

@@ -6,6 +6,7 @@
 //! solver: from chord geometry + scalar tension magnitude, estimate `h`/`v`
 //! from the chord direction and evaluate \(L_0\).
 
+use crate::geometry::CableGeometry;
 use crate::model::{CableContext, CableLength, CableModel, CableModelError, CableResult, Vec3};
 
 /// Sagging cable with mass per unit length and axial stiffness.
@@ -71,7 +72,7 @@ impl Sag {
 
     /// Decompose scalar tension along the chord into catenary horizontal `h`
     /// and vertical `v` components, iterating once for elastic consistency.
-    fn tension_components(
+    pub(crate) fn tension_components(
         &self,
         rel: &Vec3,
         l_geom: f64,
@@ -104,26 +105,18 @@ impl Sag {
 }
 
 impl CableModel for Sag {
-    fn length(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableLength> {
-        let rel = b - a;
-        let l_geom = rel.norm();
-        if l_geom <= f64::EPSILON {
-            return Err(CableModelError::Geometry("zero-length cable".into()));
-        }
+    fn geometry(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableGeometry> {
         let tension = ctx.tension.ok_or_else(|| {
             CableModelError::Context("sag model requires CableContext.tension".into())
         })?;
-        if tension <= 0.0 {
-            return Err(CableModelError::Context(
-                "tension must be positive for sag".into(),
-            ));
-        }
-        let dx = Vec3::new(rel.x, rel.y, 0.0).norm();
-        let (h, v) = self.tension_components(&rel, l_geom, dx, tension)?;
-        let l0 = self.irvine_unstrained(dx, rel.z, h, v)?;
+        crate::sag_geom::sag_geometry(self, a, b, tension)
+    }
+
+    fn length(&self, a: &Vec3, b: &Vec3, ctx: &CableContext) -> CableResult<CableLength> {
+        let g = self.geometry(a, b, ctx)?;
         Ok(CableLength {
-            geometric: l_geom,
-            unstrained: Some(l0),
+            geometric: g.geometric,
+            unstrained: g.unstrained,
         })
     }
 }

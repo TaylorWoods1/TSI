@@ -74,20 +74,16 @@ pub fn length_jacobian(
     Ok(j)
 }
 
-/// Full platform length Jacobian \(J \in \mathbb{R}^{m \times 6}\) such that
-/// \(\dot L \approx J\, \xi\) for platform twist \(\xi = [\dot{\mathbf{p}};\, \boldsymbol{\omega}]\).
-///
-/// Translational columns 0–2: \(-\mathbf{u}_i^\top\) where \(\mathbf{u}_i = (A_i - B_i)/\|A_i - B_i\|\).
-/// Rotational columns 3–5: \(-(\mathbf{b}_i \times R^\top \mathbf{u}_i)^\top\) for
-/// body-frame angular velocity (right-multiplicative orientation perturbation).
-pub fn length_jacobian_platform_6(
+/// Full platform length Jacobian with explicit unit pull directions.
+pub fn length_jacobian_platform_6_with_pulls(
     anchors: &[Anchor],
     attachments: &[PlatformAttachment],
     pose: &Pose,
+    unit_pulls: &[Vec3],
 ) -> Result<DMatrix<f64>> {
-    if anchors.len() != attachments.len() {
+    if anchors.len() != attachments.len() || anchors.len() != unit_pulls.len() {
         return Err(SpyderError::Config(
-            "anchors/attachments length mismatch".into(),
+            "anchors/attachments/unit_pulls length mismatch".into(),
         ));
     }
     let m = anchors.len();
@@ -95,18 +91,8 @@ pub fn length_jacobian_platform_6(
         return Err(SpyderError::Config("need at least 3 cables".into()));
     }
     let mut j = DMatrix::zeros(m, 6);
-    for (i, (anchor, att)) in anchors.iter().zip(attachments.iter()).enumerate() {
-        let b = pose.transform_point(&att.body_point);
-        let diff = anchor.exit - b;
-        let dist = diff.norm();
-        if dist <= f64::EPSILON {
-            return Err(SpyderError::Geometry(format!(
-                "zero-length cable at index {i}"
-            )));
-        }
-        let u = diff / dist;
-        // Body-frame angular velocity (right-multiplicative quaternion perturbation):
-        // ∂L/∂ω_body = (b × R^T u)^T
+    for (i, (att, u)) in attachments.iter().zip(unit_pulls.iter()).enumerate() {
+        let _ = &anchors[i];
         let u_body = pose.orientation.inverse() * u;
         let rot = att.body_point.cross(&u_body);
         j[(i, 0)] = -u.x;
@@ -117,6 +103,34 @@ pub fn length_jacobian_platform_6(
         j[(i, 5)] = -rot.z;
     }
     Ok(j)
+}
+
+/// Full platform length Jacobian \(J \in \mathbb{R}^{m \times 6}\) such that
+/// \(\dot L \approx J\, \xi\) for platform twist \(\xi = [\dot{\mathbf{p}};\, \boldsymbol{\omega}]\).
+pub fn length_jacobian_platform_6(
+    anchors: &[Anchor],
+    attachments: &[PlatformAttachment],
+    pose: &Pose,
+) -> Result<DMatrix<f64>> {
+    if anchors.len() != attachments.len() {
+        return Err(SpyderError::Config(
+            "anchors/attachments length mismatch".into(),
+        ));
+    }
+    let mut unit_pulls = Vec::with_capacity(anchors.len());
+    for (anchor, att) in anchors.iter().zip(attachments.iter()) {
+        let b = pose.transform_point(&att.body_point);
+        let diff = anchor.exit - b;
+        let dist = diff.norm();
+        if dist <= f64::EPSILON {
+            return Err(SpyderError::Geometry(format!(
+                "zero-length cable at index {}",
+                unit_pulls.len()
+            )));
+        }
+        unit_pulls.push(diff / dist);
+    }
+    length_jacobian_platform_6_with_pulls(anchors, attachments, pose, &unit_pulls)
 }
 
 #[cfg(test)]

@@ -53,6 +53,18 @@ pub fn structure_matrix_3(unit_pulls: &[Vec3]) -> Result<DMatrix<f64>, Structure
     Ok(a)
 }
 
+/// Numerical rank of a structure matrix (tolerance on singular values).
+pub fn structure_rank(a: &DMatrix<f64>, tol: f64) -> usize {
+    let svd = a.clone().svd(false, false);
+    let mut rank = 0usize;
+    for s in svd.singular_values.iter() {
+        if *s > tol {
+            rank += 1;
+        }
+    }
+    rank
+}
+
 /// Structure assembly errors.
 #[derive(Debug, thiserror::Error)]
 pub enum StructureError {

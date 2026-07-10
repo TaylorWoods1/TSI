@@ -6,8 +6,10 @@ use spyder_cables::{CableContext, CableModel, Ideal};
 use spyder_statics::{solve_tensions, structure_matrix_3, structure_matrix_6};
 
 use crate::anchor::{Anchor, PlatformAttachment};
+use crate::cable_eval::{default_pulley_radius, unit_pulls_at_pose};
 use crate::error::{Result, SpyderError};
 use crate::pose::Pose;
+use crate::robot::CableModelKind;
 use crate::types::Vec3;
 
 /// Result of an inverse kinematics solve.
@@ -125,23 +127,28 @@ pub fn apply_ik_options(
     attachments: &[PlatformAttachment],
     pose: &Pose,
     point_mass: bool,
+    cable_model: &CableModelKind,
     opts: &IkOptions,
 ) -> Result<IkResult> {
     if let Some(ref wrench) = opts.wrench {
-        let mut unit_pulls = Vec::with_capacity(anchors.len());
+        let def_r = default_pulley_radius(cable_model);
+        let tensions_ctx = result.tensions.as_deref();
+        let unit_pulls = unit_pulls_at_pose(
+            anchors,
+            attachments,
+            pose,
+            cable_model,
+            tensions_ctx,
+            def_r,
+        )?;
         let mut moment_arms = Vec::with_capacity(anchors.len());
-        for (anchor, att) in anchors.iter().zip(attachments.iter()) {
+        for (i, att) in attachments.iter().enumerate() {
             let b_world = pose.transform_point(&att.body_point);
-            let diff = anchor.exit - b_world;
-            let dist = diff.norm();
-            if dist <= f64::EPSILON {
+            if unit_pulls[i].norm() <= f64::EPSILON {
                 return Err(SpyderError::Geometry(
                     "zero cable for structure matrix".into(),
                 ));
             }
-            let u = diff / dist;
-            unit_pulls.push(u);
-            // moment arm from platform origin to attachment in world
             moment_arms.push(b_world - pose.position);
         }
         let f_min = if opts.f_min > 0.0 { opts.f_min } else { 1.0 };
@@ -256,7 +263,7 @@ mod tests {
             f_max: 1.0e3,
             ..IkOptions::with_defaults()
         };
-        let enriched = apply_ik_options(res, &anchors, &attachments, &pose, true, &opts).unwrap();
+        let enriched = apply_ik_options(res, &anchors, &attachments, &pose, true, &CableModelKind::Ideal, &opts).unwrap();
         let t = enriched.tensions.expect("tensions");
         assert_eq!(t.len(), 4);
         assert!(t.iter().all(|x| *x > 0.0));
@@ -283,7 +290,7 @@ mod tests {
             ..IkOptions::with_defaults()
         };
         let enriched =
-            apply_ik_options(res, &anchors, &attachments, &pose, false, &opts).unwrap();
+            apply_ik_options(res, &anchors, &attachments, &pose, false, &CableModelKind::Ideal, &opts).unwrap();
         let t = enriched.tensions.expect("tensions");
         assert_eq!(t.len(), 4);
         assert!(t.iter().all(|x| *x > 0.0));

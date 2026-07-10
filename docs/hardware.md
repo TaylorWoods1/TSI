@@ -61,16 +61,6 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 0.5,0,2 5 \
   --backend odrive --device /dev/ttyACM0 --baud 115200
 ```
 
-### Multi-board axis map
-
-Generate an example cable→device/axis map (two ODrives × 2 axes):
-
-```bash
-cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
-```
-
-Pass `--axis-map path.json` to `play` to print the mapping (Player still uses one transport today; use the map when wiring multi-board setups).
-
 ## Calibration + home
 
 Capture home pose lengths and measured anchors:

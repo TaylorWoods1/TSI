@@ -1,0 +1,11 @@
+# Regular pentagon 5-motor layout
+preset = "polygon"
+n = 5
+radius = 6.0
+height = 7.0
+point_mass = true
+
+[home]
+x = 0.0
+y = 0.0
+z = 2.0

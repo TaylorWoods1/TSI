@@ -5,6 +5,7 @@ members = [
     "crates/spyder-cables",
     "crates/spyder-statics",
     "crates/spyder-actuation",
+    "crates/spyder-cli",
 ]
 
 [workspace.package]

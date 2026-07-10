@@ -2,7 +2,10 @@
 
 #![deny(missing_docs)]
 
-/// Placeholder until actuation is implemented.
-pub fn actuation_ok() -> bool {
-    true
-}
+pub mod mapping;
+pub mod motor;
+pub mod winch;
+
+pub use mapping::{length_delta_to_command, synchronized_step_delays, MotorCommand};
+pub use motor::{Motor, MotorError};
+pub use winch::{Winch, WinchError};

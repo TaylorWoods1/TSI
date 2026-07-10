@@ -18,7 +18,9 @@ pub use anchor::{Anchor, PlatformAttachment};
 pub use error::{Result, SpyderError};
 pub use fk::{fk_point_mass_from_anchors, fk_point_mass_numeric, FkMethod, FkResult};
 pub use fk_analytic::{fk_analytic_3, fk_analytic_rect4, is_axis_aligned_rect4};
-pub use ik::{ideal_ik_point_mass, ik_ideal, ik_with_model, IkResult};
+pub use ik::{
+    apply_ik_options, ideal_ik_point_mass, ik_ideal, ik_with_model, IkOptions, IkResult,
+};
 pub use pose::Pose;
 pub use preset::{rect, regular_polygon, triangle};
 pub use robot::{Preset, Robot};

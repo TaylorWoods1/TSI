@@ -98,7 +98,39 @@ impl Robot {
 
     /// Ideal-model inverse kinematics.
     pub fn ik(&self, pose: &Pose) -> Result<IkResult> {
-        ik_ideal(&self.anchors, &self.effective_attachments(), pose)
+        self.ik_with_options(pose, &crate::ik::IkOptions::with_defaults())
+    }
+
+    /// IK with tension / motor mapping options.
+    pub fn ik_with_options(
+        &self,
+        pose: &Pose,
+        opts: &crate::ik::IkOptions,
+    ) -> Result<IkResult> {
+        let attachments = self.effective_attachments();
+        let res = ik_ideal(&self.anchors, &attachments, pose)?;
+        crate::ik::apply_ik_options(res, &self.anchors, &attachments, pose, self.point_mass, opts)
+    }
+
+    /// Wrench feasibility at a pose (point-mass 3-force or platform 6-wrench).
+    pub fn is_wrench_feasible(
+        &self,
+        pose: &Pose,
+        wrench: nalgebra::DVector<f64>,
+        f_min: f64,
+        f_max: f64,
+    ) -> Result<bool> {
+        let opts = crate::ik::IkOptions {
+            wrench: Some(wrench),
+            f_min,
+            f_max,
+            ..crate::ik::IkOptions::with_defaults()
+        };
+        match self.ik_with_options(pose, &opts) {
+            Ok(r) => Ok(r.tensions.is_some()),
+            Err(SpyderError::InfeasibleWrench) => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 
     /// Forward kinematics with automatic analytic dispatch when possible.

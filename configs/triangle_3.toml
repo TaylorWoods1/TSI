@@ -1,0 +1,11 @@
+# Equilateral triangle 3-motor layout
+preset = "polygon"
+n = 3
+radius = 5.0
+height = 6.0
+point_mass = true
+
+[home]
+x = 0.0
+y = 0.0
+z = 1.5

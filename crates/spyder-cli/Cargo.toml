@@ -1,0 +1,13 @@
+[package]
+name = "spyder-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line interface for spyder IK/FK"
+
+[[bin]]
+name = "spyder"
+path = "src/main.rs"
+
+[dependencies]
+spyder-core = { path = "../spyder-core" }

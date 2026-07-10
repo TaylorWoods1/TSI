@@ -209,6 +209,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "spyder-cli"
+version = "0.1.0"
+dependencies = [
+ "spyder-core",
+]
+
+[[package]]
 name = "spyder-core"
 version = "0.1.0"
 dependencies = [

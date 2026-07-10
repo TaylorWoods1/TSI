@@ -1,0 +1,11 @@
+# Rectangular 4-motor spider-cam layout (meters, Z-up)
+preset = "rect"
+width = 10.0
+depth = 6.0
+height = 8.0
+point_mass = true
+
+[home]
+x = 0.0
+y = 0.0
+z = 2.0

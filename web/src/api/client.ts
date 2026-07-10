@@ -26,10 +26,47 @@ export type Venue = {
   attachments: Vec3[];
   point_mass: boolean;
   model: string;
+  pulley_radius: number;
+  sag_mu: number;
+  sag_ea: number;
   home: Vec3;
 };
 
 export type VenueResponse = { venue: Venue; classify: string };
+
+export type SceneSnapshot = {
+  anchors: [number, number, number][];
+  dolly: [number, number, number];
+  attachments: [number, number, number][];
+  lengths: number[];
+  cable_paths: [number, number, number][][];
+  unit_pulls: [number, number, number][];
+  model: string;
+};
+
+function vec3FromTuple(t: [number, number, number]): Vec3 {
+  return { x: t[0], y: t[1], z: t[2] };
+}
+
+export function sceneSnapshotToSceneData(snap: SceneSnapshot): {
+  anchors: Vec3[];
+  dolly: Vec3;
+  attachments: Vec3[];
+  lengths: number[];
+  cable_paths: Vec3[][];
+  unit_pulls: Vec3[];
+  model: string;
+} {
+  return {
+    anchors: snap.anchors.map(vec3FromTuple),
+    dolly: vec3FromTuple(snap.dolly),
+    attachments: snap.attachments.map(vec3FromTuple),
+    lengths: snap.lengths,
+    cable_paths: snap.cable_paths.map((path) => path.map(vec3FromTuple)),
+    unit_pulls: snap.unit_pulls.map(vec3FromTuple),
+    model: snap.model,
+  };
+}
 
 export async function health() {
   return request<{ ok: boolean; version: string }>("/health");
@@ -51,6 +88,19 @@ export async function setAnchors(body: object) {
   });
 }
 
+export async function setCableModel(body: {
+  model: string;
+  pulley_radius?: number;
+  sag_mu?: number;
+  sag_ea?: number;
+}) {
+  return request<VenueResponse>("/venue/set_model", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function loadVenue(toml: string) {
   return request<VenueResponse>("/venue/load", {
     method: "POST",
@@ -63,11 +113,31 @@ export async function getToml() {
   return request<{ toml: string }>("/venue/toml");
 }
 
-export async function ik(xyz: [number, number, number], mg?: number) {
-  return request<{ lengths: number[]; tensions?: number[] }>("/ik", {
+export async function ik(
+  xyz: [number, number, number],
+  options?: { mg?: number; model?: string },
+) {
+  return request<{
+    lengths: number[];
+    tensions?: number[];
+    unstrained_lengths?: (number | null)[];
+  }>("/ik", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xyz, mg }),
+    body: JSON.stringify({ xyz, mg: options?.mg, model: options?.model }),
+  });
+}
+
+export async function fk(lengths: number[], seed: [number, number, number]) {
+  return request<{
+    xyz: [number, number, number];
+    orientation_rv: [number, number, number];
+    method: string;
+    residual: number;
+  }>("/fk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lengths, seed }),
   });
 }
 
@@ -94,12 +164,7 @@ export async function workspace(body: object) {
 }
 
 export async function sceneSnapshot(xyz: [number, number, number]) {
-  return request<{
-    anchors: [number, number, number][];
-    dolly: [number, number, number];
-    attachments: [number, number, number][];
-    lengths: number[];
-  }>("/scene/snapshot", {
+  return request<SceneSnapshot>("/scene/snapshot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ xyz }),

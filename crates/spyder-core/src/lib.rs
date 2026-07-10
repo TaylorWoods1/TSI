@@ -6,6 +6,7 @@
 
 pub mod anchor;
 pub mod cable_eval;
+pub mod cable_path;
 pub mod error;
 pub mod fk;
 pub mod fk_analytic;
@@ -17,6 +18,8 @@ pub mod robot;
 pub mod types;
 
 pub use anchor::{Anchor, PlatformAttachment};
+pub use cable_eval::{cable_geometry_at, default_pulley_radius, predicted_lengths, unit_pulls_at_pose};
+pub use cable_path::cable_paths_at_pose;
 pub use error::{Result, SpyderError};
 pub use fk::{
     fk_platform_numeric, fk_point_mass_from_anchors, fk_point_mass_numeric, FkMethod, FkOptions,

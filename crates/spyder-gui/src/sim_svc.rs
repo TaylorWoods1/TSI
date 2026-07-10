@@ -12,16 +12,29 @@ use crate::dto::{
     JacobianRequest, JacobianResponse, SceneSnapshotRequest, SceneSnapshotResponse,
     TrajLineRequest, TrajLineResponse, WorkspaceRequest, WorkspaceResponse, WorkspaceSampleDto,
 };
-use crate::state::apply_cable_model;
+use crate::state::{apply_cable_model, cable_model_params, CableModelParams};
+
+fn model_params_for_ik(robot: &Robot, req: &IkRequest) -> CableModelParams {
+    let base = cable_model_params(robot);
+    if let Some(ref model) = req.model {
+        CableModelParams {
+            model: model.clone(),
+            ..base
+        }
+    } else {
+        base
+    }
+}
 
 /// Inverse kinematics at a pose.
 pub fn ik(robot: &Robot, req: &IkRequest) -> Result<IkResponse, String> {
     let mut robot = robot.clone();
-    if let Some(ref model) = req.model {
-        apply_cable_model(&mut robot, model)?;
-    }
+    let params = model_params_for_ik(&robot, req);
+    apply_cable_model(&mut robot, &params)?;
     let pose = Pose::from_position(Vec3::new(req.xyz[0], req.xyz[1], req.xyz[2]));
-    let result = if let Some(mg) = req.mg {
+    let needs_wrench = params.model == "sag" || req.mg.is_some();
+    let result = if needs_wrench {
+        let mg = req.mg.unwrap_or(50.0);
         let mut opts = spyder_core::IkOptions::with_defaults();
         opts.wrench = Some(DVector::from_vec(vec![0.0, 0.0, -mg]));
         opts.f_min = 0.5;
@@ -33,6 +46,11 @@ pub fn ik(robot: &Robot, req: &IkRequest) -> Result<IkResponse, String> {
     Ok(IkResponse {
         lengths: result.lengths,
         tensions: result.tensions,
+        unstrained_lengths: if result.unstrained_lengths.iter().any(|u| u.is_some()) {
+            Some(result.unstrained_lengths)
+        } else {
+            None
+        },
     })
 }
 
@@ -124,7 +142,7 @@ pub fn traj_line(robot: &Robot, req: &TrajLineRequest) -> Result<TrajLineRespons
     })
 }
 
-/// 3D scene snapshot at a pose.
+/// 3D scene snapshot at a pose (model-aware cable paths).
 pub fn scene_snapshot(
     robot: &Robot,
     req: &SceneSnapshotRequest,
@@ -136,5 +154,8 @@ pub fn scene_snapshot(
         dolly: snap.dolly,
         attachments: snap.attachments,
         lengths: snap.lengths,
+        cable_paths: snap.cable_paths,
+        unit_pulls: snap.unit_pulls,
+        model: snap.model,
     })
 }

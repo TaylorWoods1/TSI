@@ -55,6 +55,45 @@ pub fn sag_geometry(sag: &Sag, a: &Vec3, b: &Vec3, tension: f64) -> CableResult<
     })
 }
 
+/// Catenary-like polyline in the sag plane for visualization.
+pub fn sag_visual_polyline(
+    sag: &Sag,
+    a: &Vec3,
+    b: &Vec3,
+    tension: f64,
+    segments: usize,
+) -> CableResult<Vec<Vec3>> {
+    if tension <= 0.0 {
+        return Err(CableModelError::Context(
+            "tension must be positive for sag visualization".into(),
+        ));
+    }
+    let rel = b - a;
+    let l_geom = rel.norm();
+    if l_geom <= f64::EPSILON {
+        return Err(CableModelError::Geometry("zero-length cable".into()));
+    }
+    let (l_h, _) = sag_spans(&rel);
+    let chord_hat = rel / l_geom;
+    let g_down = gravity_down(sag.g);
+    let w = sag.mu * sag.g;
+    let sag_slope = (w * l_h.max(1e-9)) / (2.0 * tension);
+    let sag_amp = sag_slope * l_geom * 0.35;
+    let down_in_plane = sag_plane_down(&chord_hat, &g_down);
+
+    let n = segments.max(4);
+    let mut pts = Vec::with_capacity(n + 1);
+    for i in 0..=n {
+        let u = i as f64 / n as f64;
+        let on_chord = a + rel * u;
+        let sag_off = down_in_plane
+            .map(|d| d * sag_amp * (std::f64::consts::PI * u).sin())
+            .unwrap_or_else(Vec3::zeros);
+        pts.push(on_chord + sag_off);
+    }
+    Ok(pts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

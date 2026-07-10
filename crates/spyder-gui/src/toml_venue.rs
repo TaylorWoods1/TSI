@@ -3,6 +3,8 @@
 use spyder_core::{Anchor, PlatformAttachment, Robot, Vec3};
 use spyder_runtime::venue_toml_from_anchors;
 
+use crate::state::CableModelParams;
+
 /// Parse venue TOML into a robot and home pose.
 pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
     let mut preset = String::from("rect");
@@ -18,6 +20,10 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
     let mut cur_kind = "";
     let mut home = Vec3::new(0.0, 0.0, 2.0);
     let mut in_home = false;
+    let mut cable_model = String::from("ideal");
+    let mut pulley_radius = 0.05f64;
+    let mut sag_mu = 1.0f64;
+    let mut sag_ea = 1.0e6f64;
 
     let flush = |cur: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
                  kind: &str,
@@ -100,6 +106,10 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
                 "n" => n = Some(v.parse::<usize>().map_err(|e: std::num::ParseIntError| e.to_string())?),
                 "radius" => radius = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
                 "point_mass" => point_mass = v.parse::<bool>().map_err(|e: std::str::ParseBoolError| e.to_string())?,
+                "cable_model" => cable_model = v.to_string(),
+                "pulley_radius" => pulley_radius = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
+                "sag_mu" => sag_mu = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
+                "sag_ea" => sag_ea = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
                 _ => {}
             }
         }
@@ -114,6 +124,15 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
         };
         let mut r = Robot::from_anchors(anchors, atts, point_mass).map_err(|e| e.to_string())?;
         r.point_mass = point_mass;
+        crate::state::apply_cable_model(
+            &mut r,
+            &CableModelParams {
+                model: cable_model,
+                pulley_radius,
+                sag_mu,
+                sag_ea,
+            },
+        )?;
         return Ok((r, home));
     }
 
@@ -136,15 +155,25 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
         r.attachments = attachments;
     }
     r.point_mass = point_mass;
+    crate::state::apply_cable_model(
+        &mut r,
+        &CableModelParams {
+            model: cable_model,
+            pulley_radius,
+            sag_mu,
+            sag_ea,
+        },
+    )?;
     Ok((r, home))
 }
 
-/// Emit venue TOML from anchors, attachments, and home.
+/// Emit venue TOML from anchors, attachments, home, and cable model.
 pub fn emit_venue_toml(
     anchors: &[Vec3],
     attachments: &[Vec3],
     point_mass: bool,
     home: Vec3,
+    model: &CableModelParams,
 ) -> Result<String, String> {
     let anchors_m: Vec<[f64; 3]> = anchors
         .iter()
@@ -160,20 +189,30 @@ pub fn emit_venue_toml(
                 .collect(),
         )
     };
-    venue_toml_from_anchors(
+    let mut toml = venue_toml_from_anchors(
         &anchors_m,
         home,
         point_mass,
         atts.as_deref(),
-        0.05,
-        200.0,
+        model.pulley_radius,
+        model.sag_ea,
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    toml.push_str(&format!("\ncable_model = \"{}\"\n", model.model));
+    if model.model == "pulley" {
+        toml.push_str(&format!("pulley_radius = {:.6}\n", model.pulley_radius));
+    }
+    if model.model == "sag" {
+        toml.push_str(&format!("sag_mu = {:.6}\n", model.sag_mu));
+        toml.push_str(&format!("sag_ea = {:.1}\n", model.sag_ea));
+    }
+    Ok(toml)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::CableModelParams;
     use spyder_core::Vec3;
 
     #[test]
@@ -184,10 +223,16 @@ mod tests {
             Vec3::new(-5.0, -3.0, 8.0),
             Vec3::new(5.0, -3.0, 8.0),
         ];
-        let toml = emit_venue_toml(&anchors, &[], true, Vec3::new(0.0, 0.0, 1.5)).unwrap();
+        let params = CableModelParams {
+            model: "pulley".into(),
+            pulley_radius: 0.06,
+            ..Default::default()
+        };
+        let toml = emit_venue_toml(&anchors, &[], true, Vec3::new(0.0, 0.0, 1.5), &params).unwrap();
         let (robot, home) = parse_venue_toml(&toml).unwrap();
         assert_eq!(robot.anchors.len(), 4);
         assert!((home.z - 1.5).abs() < 1e-9);
+        assert_eq!(crate::state::cable_model_str(&robot.cable_model), "pulley");
     }
 
     #[test]

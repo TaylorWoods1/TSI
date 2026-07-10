@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use crate::design::{from_preset, load_venue, set_anchors, venue_toml};
+use crate::design::{from_preset, load_venue, set_anchors, set_cable_model, venue_toml};
 use crate::dto::*;
 use crate::run_svc::RunSession;
 use crate::sim_svc::{feasible, fk, ik, jacobian, scene_snapshot, traj_line, workspace};
@@ -98,6 +98,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/venue/load", post(venue_load))
         .route("/venue/from_preset", post(venue_from_preset))
         .route("/venue/set_anchors", post(venue_set_anchors))
+        .route("/venue/set_model", post(venue_set_model))
         .route("/venue/toml", get(venue_toml_get))
         .route("/ik", post(ik_route))
         .route("/fk", post(fk_route))
@@ -142,6 +143,13 @@ async fn venue_set_anchors(
     Json(req): Json<SetAnchorsRequest>,
 ) -> Result<Json<VenueResponse>, ApiError> {
     Ok(Json(set_anchors(&state, &req).await?))
+}
+
+async fn venue_set_model(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SetCableModelRequest>,
+) -> Result<Json<VenueResponse>, ApiError> {
+    Ok(Json(set_cable_model(&state, &req).await?))
 }
 
 async fn venue_toml_get(State(state): State<Arc<AppState>>) -> Result<Json<TomlResponse>, ApiError> {

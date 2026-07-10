@@ -4,52 +4,99 @@ use std::fs;
 use std::path::Path;
 
 use serde::Serialize;
-use spyder_core::{Pose, Robot, Vec3};
+use spyder_core::{
+    cable_paths_at_pose, unit_pulls_at_pose, Pose, Robot, Vec3,
+};
+use spyder_core::cable_eval::default_pulley_radius;
 
 use crate::{line_waypoints, WorkspaceReport};
 
 /// Snapshot of the robot at a pose for visualization.
 #[derive(Clone, Debug, Serialize)]
 pub struct SceneSnapshot {
-    /// Anchor world positions.
+    /// Anchor world positions (pulley centers).
     pub anchors: Vec<[f64; 3]>,
     /// Dolly / EE position.
     pub dolly: [f64; 3],
     /// Cable lengths.
     pub lengths: Vec<f64>,
-    /// Attachment world points (same as dolly in point-mass mode).
+    /// Attachment world points.
     pub attachments: Vec<[f64; 3]>,
+    /// Model-aware cable polylines (one vertex list per cable).
+    pub cable_paths: Vec<Vec<[f64; 3]>>,
+    /// Unit pull directions at each attachment (for force arrows).
+    pub unit_pulls: Vec<[f64; 3]>,
+    /// Active cable model label.
+    pub model: String,
 }
 
 impl SceneSnapshot {
-    /// Build from robot + pose via IK.
+    /// Build from robot + pose via IK (model-aware cable paths).
     pub fn from_robot(robot: &Robot, pose: &Pose) -> spyder_core::Result<Self> {
-        let ik = robot.ik(pose)?;
+        use nalgebra::DVector;
+        use spyder_core::{CableModelKind, IkOptions};
+
+        let ik = match &robot.cable_model {
+            CableModelKind::Sag(_) => {
+                let mut opts = IkOptions::with_defaults();
+                opts.wrench = Some(DVector::from_vec(vec![0.0, 0.0, -50.0]));
+                opts.f_min = 1.0;
+                opts.f_max = 1.0e4;
+                robot.ik_with_options(pose, &opts)?
+            }
+            _ => robot.ik(pose)?,
+        };
+        let attachments_body = if robot.point_mass {
+            robot
+                .anchors
+                .iter()
+                .map(|_| spyder_core::PlatformAttachment::origin())
+                .collect::<Vec<_>>()
+        } else {
+            robot.attachments.clone()
+        };
         let anchors: Vec<[f64; 3]> = robot
             .anchors
             .iter()
             .map(|a| [a.exit.x, a.exit.y, a.exit.z])
             .collect();
-        let attachments: Vec<[f64; 3]> = if robot.point_mass {
-            vec![
-                [pose.position.x, pose.position.y, pose.position.z];
-                robot.anchors.len()
-            ]
-        } else {
-            robot
-                .attachments
-                .iter()
-                .map(|att| {
-                    let p = pose.transform_point(&att.body_point);
-                    [p.x, p.y, p.z]
-                })
-                .collect()
+        let attachments: Vec<[f64; 3]> = attachments_body
+            .iter()
+            .map(|att| {
+                let p = pose.transform_point(&att.body_point);
+                [p.x, p.y, p.z]
+            })
+            .collect();
+        let cable_paths = cable_paths_at_pose(
+            &robot.anchors,
+            &attachments_body,
+            pose,
+            &robot.cable_model,
+            ik.tensions.as_deref(),
+        )?;
+        let def_r = default_pulley_radius(&robot.cable_model);
+        let pulls = unit_pulls_at_pose(
+            &robot.anchors,
+            &attachments_body,
+            pose,
+            &robot.cable_model,
+            ik.tensions.as_deref(),
+            def_r,
+        )?;
+        let unit_pulls: Vec<[f64; 3]> = pulls.iter().map(|u| [u.x, u.y, u.z]).collect();
+        let model = match &robot.cable_model {
+            spyder_core::CableModelKind::Ideal => "ideal".into(),
+            spyder_core::CableModelKind::Pulley { .. } => "pulley".into(),
+            spyder_core::CableModelKind::Sag(_) => "sag".into(),
         };
         Ok(Self {
             anchors,
             dolly: [pose.position.x, pose.position.y, pose.position.z],
             lengths: ik.lengths,
             attachments,
+            cable_paths,
+            unit_pulls,
+            model,
         })
     }
 }
@@ -113,20 +160,26 @@ impl SceneAnimation {
 
 fn cable_js_for_frame(scene: &SceneSnapshot) -> String {
     let mut cable_traces = String::new();
-    for i in 0..scene.anchors.len() {
-        let a = scene.anchors[i];
-        let b = scene.attachments[i];
+    for (i, path) in scene.cable_paths.iter().enumerate() {
         if i > 0 {
             cable_traces.push(',');
         }
+        if path.len() < 2 {
+            continue;
+        }
+        let xs: Vec<f64> = path.iter().map(|p| p[0]).collect();
+        let ys: Vec<f64> = path.iter().map(|p| p[1]).collect();
+        let zs: Vec<f64> = path.iter().map(|p| p[2]).collect();
         cable_traces.push_str(&format!(
             r#"{{
-      x: [{}, {}], y: [{}, {}], z: [{}, {}],
+      x: {xs}, y: {ys}, z: {zs},
       mode: 'lines', type: 'scatter3d', name: 'cable {i}',
       line: {{ width: 6, color: '#f0a202' }},
       showlegend: false
     }}"#,
-            a[0], b[0], a[1], b[1], a[2], b[2],
+            xs = serde_json::to_string(&xs).unwrap(),
+            ys = serde_json::to_string(&ys).unwrap(),
+            zs = serde_json::to_string(&zs).unwrap(),
         ));
     }
     cable_traces
@@ -250,12 +303,18 @@ pub fn write_scene_animation_html(
             frame.dolly[0], frame.dolly[1], frame.dolly[2]
         ));
         // cables start at index 2
-        for i in 0..n_cables {
-            let a = frame.anchors[i];
-            let b = frame.attachments[i];
+        for path in &frame.cable_paths {
+            if path.len() < 2 {
+                continue;
+            }
+            let xs: Vec<f64> = path.iter().map(|p| p[0]).collect();
+            let ys: Vec<f64> = path.iter().map(|p| p[1]).collect();
+            let zs: Vec<f64> = path.iter().map(|p| p[2]).collect();
             data.push_str(&format!(
-                ",{{x:[{},{}],y:[{},{}],z:[{},{}]}}",
-                a[0], b[0], a[1], b[1], a[2], b[2]
+                ",{{x:{xs},y:{ys},z:{zs}}}",
+                xs = serde_json::to_string(&xs).unwrap(),
+                ys = serde_json::to_string(&ys).unwrap(),
+                zs = serde_json::to_string(&zs).unwrap(),
             ));
         }
         // optional workspace at end — static, omit from frame updates
@@ -303,20 +362,26 @@ pub fn write_scene_animation_html(
 
     let first = &anim.frames[0];
     let mut init_cables = String::new();
-    for i in 0..n_cables {
-        let a = first.anchors[i];
-        let b = first.attachments[i];
+    for (i, path) in first.cable_paths.iter().enumerate() {
+        if path.len() < 2 {
+            continue;
+        }
         if i > 0 {
             init_cables.push(',');
         }
+        let xs: Vec<f64> = path.iter().map(|p| p[0]).collect();
+        let ys: Vec<f64> = path.iter().map(|p| p[1]).collect();
+        let zs: Vec<f64> = path.iter().map(|p| p[2]).collect();
         init_cables.push_str(&format!(
             r#"{{
-      x: [{}, {}], y: [{}, {}], z: [{}, {}],
+      x: {xs}, y: {ys}, z: {zs},
       mode: 'lines', type: 'scatter3d', name: 'cable {i}',
       line: {{ width: 6, color: '#f0a202' }},
       showlegend: false
     }}"#,
-            a[0], b[0], a[1], b[1], a[2], b[2],
+            xs = serde_json::to_string(&xs).unwrap(),
+            ys = serde_json::to_string(&ys).unwrap(),
+            zs = serde_json::to_string(&zs).unwrap(),
         ));
     }
 
@@ -568,5 +633,27 @@ mod tests {
         assert_eq!(snap.lengths, ik.lengths);
         assert_relative_eq!(snap.dolly[2], 1.2);
         assert_eq!(snap.anchors.len(), 4);
+    }
+
+    #[test]
+    fn scene_snapshot_has_cable_paths() {
+        let mut robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        robot.cable_model = spyder_core::CableModelKind::Pulley {
+            default_radius: 0.06,
+        };
+        for a in &mut robot.anchors {
+            a.pulley_axis = Some(Vec3::z());
+            a.pulley_radius = 0.06;
+        }
+        let pose = Pose::from_position(Vec3::new(0.2, -0.1, 1.0));
+        let snap = SceneSnapshot::from_robot(&robot, &pose).unwrap();
+        assert_eq!(snap.cable_paths.len(), 4);
+        assert!(snap.cable_paths[0].len() >= 3);
+        assert_eq!(snap.model, "pulley");
     }
 }

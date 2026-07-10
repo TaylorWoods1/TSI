@@ -49,8 +49,27 @@ pub struct VenueDto {
     pub point_mass: bool,
     /// Cable model: `ideal`, `pulley`, or `sag`.
     pub model: String,
+    /// Default pulley radius when model is `pulley`.
+    #[serde(default = "default_pulley_radius")]
+    pub pulley_radius: f64,
+    /// Sag mass per unit length (kg/m).
+    #[serde(default = "default_sag_mu")]
+    pub sag_mu: f64,
+    /// Sag axial stiffness EA (N).
+    #[serde(default = "default_sag_ea")]
+    pub sag_ea: f64,
     /// Home pose.
     pub home: Vec3Dto,
+}
+
+fn default_pulley_radius() -> f64 {
+    0.05
+}
+fn default_sag_mu() -> f64 {
+    1.0
+}
+fn default_sag_ea() -> f64 {
+    1.0e6
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -122,6 +141,30 @@ pub struct SetAnchorsRequest {
     /// Cable model override.
     #[serde(default)]
     pub model: Option<String>,
+    /// Pulley default radius (meters).
+    #[serde(default)]
+    pub pulley_radius: Option<f64>,
+    /// Sag μ (kg/m).
+    #[serde(default)]
+    pub sag_mu: Option<f64>,
+    /// Sag EA (N).
+    #[serde(default)]
+    pub sag_ea: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SetCableModelRequest {
+    /// `ideal`, `pulley`, or `sag`.
+    pub model: String,
+    /// Pulley default radius (meters).
+    #[serde(default)]
+    pub pulley_radius: Option<f64>,
+    /// Sag μ (kg/m).
+    #[serde(default)]
+    pub sag_mu: Option<f64>,
+    /// Sag EA (N).
+    #[serde(default)]
+    pub sag_ea: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -137,7 +180,10 @@ pub struct IkRequest {
     /// Cable model override.
     #[serde(default)]
     pub model: Option<String>,
-    /// Gravity magnitude for wrench (Newtons); enables tensions.
+    /// Cable model override.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Gravity magnitude for wrench (Newtons); required for sag model.
     #[serde(default)]
     pub mg: Option<f64>,
 }
@@ -149,6 +195,9 @@ pub struct IkResponse {
     /// Per-cable tensions when wrench provided.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tensions: Option<Vec<f64>>,
+    /// Unstrained lengths (sag model).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unstrained_lengths: Option<Vec<Option<f64>>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -288,6 +337,12 @@ pub struct SceneSnapshotResponse {
     pub attachments: Vec<[f64; 3]>,
     /// Cable lengths at the pose.
     pub lengths: Vec<f64>,
+    /// Model-aware cable polylines.
+    pub cable_paths: Vec<Vec<[f64; 3]>>,
+    /// Unit pull directions at attachments.
+    pub unit_pulls: Vec<[f64; 3]>,
+    /// Active cable model.
+    pub model: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

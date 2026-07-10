@@ -82,6 +82,77 @@ pub fn pulley_geometry(b: &Vec3, input: &PulleyGeomInput) -> CableResult<CableGe
     })
 }
 
+/// Polyline vertices for rendering: rim arc (when present) → tangent → attachment.
+pub fn pulley_visual_polyline(
+    b: &Vec3,
+    input: &PulleyGeomInput,
+    arc_segments: usize,
+) -> CableResult<Vec<Vec3>> {
+    if input.radius <= f64::EPSILON {
+        return Ok(vec![input.center, *b]);
+    }
+    let axis = input.axis;
+    let r = input.radius;
+    let c = input.center;
+    let rel = b - c;
+    let axial = rel.dot(&axis);
+    let radial_vec = rel - axis * axial;
+    let rho = radial_vec.norm();
+    if rho <= r + 1e-12 {
+        return Err(CableModelError::Geometry(
+            "attachment inside pulley cylinder; no real tangent".into(),
+        ));
+    }
+
+    let cb = radial_vec / rho;
+    let alpha = (r / rho).clamp(-1.0, 1.0).acos();
+    let sin_a = (1.0 - (r / rho).powi(2)).max(0.0).sqrt();
+    let perp = axis.cross(&cb);
+    let perp_n = perp.norm();
+    let perp_hat = if perp_n > f64::EPSILON {
+        perp / perp_n
+    } else {
+        return Err(CableModelError::Geometry(
+            "attachment on pulley axis; indeterminate tangent".into(),
+        ));
+    };
+
+    let t = c + r * (cb * alpha.cos() + perp_hat * sin_a);
+    let t_dir = (t - c) / r;
+
+    let mut pts = Vec::new();
+    let n = arc_segments.max(2);
+
+    if let Some(winch) = input.winch_exit {
+        let mut w = winch - axis * winch.dot(&axis);
+        let wn = w.norm();
+        if wn > f64::EPSILON {
+            w /= wn;
+            for i in 0..=n {
+                let frac = i as f64 / n as f64;
+                let dir = (w * (1.0 - frac) + t_dir * frac).normalize();
+                pts.push(c + dir * r);
+            }
+        } else {
+            pts.push(t);
+        }
+    } else {
+        let ref_dir = cb;
+        for i in 0..=n {
+            let frac = i as f64 / n as f64;
+            let angle = alpha * frac;
+            let dir = (ref_dir * angle.cos() + perp_hat * angle.sin()).normalize();
+            pts.push(c + dir * r);
+        }
+    }
+
+    if pts.last().map(|p| (*p - t).norm()).unwrap_or(1.0) > 1e-9 {
+        pts.push(t);
+    }
+    pts.push(*b);
+    Ok(pts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

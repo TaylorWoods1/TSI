@@ -10,29 +10,83 @@ export default function SimulatePage() {
   const [playing, setPlaying] = useState(false);
   const [waypoints, setWaypoints] = useState<[number, number, number][]>([]);
   const [lengths, setLengths] = useState<number[][]>([]);
+  const [scene, setScene] = useState<SceneData | null>(null);
+  const [showPulls, setShowPulls] = useState(true);
+  const [mg, setMg] = useState(50);
   const frameRef = useRef(0);
   const animRef = useRef<number | null>(null);
+
+  const refreshScene = useCallback(
+    async (pos: api.Vec3) => {
+      try {
+        const snap = await api.sceneSnapshot([pos.x, pos.y, pos.z]);
+        const data = api.sceneSnapshotToSceneData(snap);
+        setScene({
+          ...data,
+          workspace: workspacePts,
+          show_pulls: showPulls,
+        });
+      } catch (e) {
+        setScene({
+          anchors: venue?.anchors ?? [],
+          dolly: pos,
+          lengths: [],
+          model: venue?.model,
+          workspace: workspacePts,
+        });
+        setReadout(String(e));
+      }
+    },
+    [venue, workspacePts, showPulls],
+  );
 
   const updateReadout = useCallback(
     async (pos: api.Vec3) => {
       try {
-        const ik = await api.ik([pos.x, pos.y, pos.z], 9.81);
+        const ik = await api.ik([pos.x, pos.y, pos.z], {
+          mg: venue?.model === "sag" || mg > 0 ? mg : undefined,
+          model: venue?.model,
+        });
         const tensionStr = ik.tensions
-          ? `\ntensions: ${ik.tensions.map((t) => t.toFixed(2)).join(", ")}`
+          ? `\ntensions: ${ik.tensions.map((t) => t.toFixed(2)).join(", ")} N`
+          : "";
+        const unstrainedStr = ik.unstrained_lengths
+          ? `\nunstrained: ${ik.unstrained_lengths
+              .map((u) => (u == null ? "—" : u.toFixed(3)))
+              .join(", ")} m`
           : "";
         setReadout(
-          `lengths: ${ik.lengths.map((l) => l.toFixed(3)).join(", ")}${tensionStr}`,
+          `model: ${venue?.model ?? "ideal"}\nlengths: ${ik.lengths.map((l) => l.toFixed(3)).join(", ")} m${tensionStr}${unstrainedStr}`,
         );
+        await refreshScene(pos);
       } catch (e) {
         setReadout(String(e));
       }
     },
-    [],
+    [venue, mg, refreshScene],
   );
 
   useEffect(() => {
     updateReadout(dolly);
   }, [dolly, updateReadout]);
+
+  const runFk = async () => {
+    const idx = Math.max(0, frameRef.current - 1);
+    const lens = lengths[idx];
+    if (!lens || lens.length === 0) {
+      setReadout((r) => `${r}\nFK: plan a trajectory first`);
+      return;
+    }
+    try {
+      const fk = await api.fk(lens, [dolly.x, dolly.y, dolly.z + 0.5]);
+      setReadout(
+        (r) =>
+          `${r}\nFK → [${fk.xyz.map((x) => x.toFixed(4)).join(", ")}] residual ${fk.residual.toExponential(2)} (${fk.method})`,
+      );
+    } catch (e) {
+      setReadout((r) => `${r}\nFK error: ${e}`);
+    }
+  };
 
   const planTraj = async () => {
     const res = await api.trajLine({
@@ -93,21 +147,23 @@ export default function SimulatePage() {
       nx: 7,
       ny: 7,
       nz: 5,
-      mg: 9.81,
+      mg,
       f_min: 0.5,
       f_max: 500,
     });
-    setWorkspacePts(
-      res.samples.filter((s) => s.feasible).map((s) => ({ x: s.x, y: s.y, z: s.z })),
-    );
+    const pts = res.samples.filter((s) => s.feasible).map((s) => ({ x: s.x, y: s.y, z: s.z }));
+    setWorkspacePts(pts);
+    setScene((s) => (s ? { ...s, workspace: pts } : s));
     setReadout((r) => `${r}\nworkspace fraction: ${(res.fraction * 100).toFixed(1)}%`);
   };
 
-  const scene: SceneData = {
+  const displayScene: SceneData = scene ?? {
     anchors: venue?.anchors ?? [],
     dolly,
-    lengths: lengths[frameRef.current - 1] ?? [],
+    lengths: lengths[Math.max(0, frameRef.current - 1)] ?? [],
+    model: venue?.model,
     workspace: workspacePts,
+    show_pulls: showPulls,
   };
 
   const setTrajField = (key: keyof typeof traj, axis: number, value: number) => {
@@ -125,10 +181,29 @@ export default function SimulatePage() {
   return (
     <div className="page">
       <div className="viewport">
-        <RobotScene scene={scene} />
+        <RobotScene scene={displayScene} />
       </div>
       <aside className="inspector">
         <h3>Simulate</h3>
+        <div className="readout">Cable model: {venue?.model ?? "ideal"}</div>
+        <div className="field">
+          <label>Payload weight mg (N)</label>
+          <input
+            type="number"
+            step="1"
+            min={0}
+            value={mg}
+            onChange={(e) => setMg(parseFloat(e.target.value) || 0)}
+          />
+        </div>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={showPulls}
+            onChange={(e) => setShowPulls(e.target.checked)}
+          />
+          Show pull directions
+        </label>
         <div className="field">
           <label>Start XYZ</label>
           <div className="field-row">
@@ -177,7 +252,10 @@ export default function SimulatePage() {
         <button type="button" className="btn" onClick={sampleWorkspace}>
           Workspace overlay
         </button>
-        <div className="readout">{readout}</div>
+        <button type="button" className="btn" onClick={runFk}>
+          FK check
+        </button>
+        <div className="readout pre">{readout}</div>
       </aside>
     </div>
   );

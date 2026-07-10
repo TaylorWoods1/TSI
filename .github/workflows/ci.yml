@@ -23,6 +23,25 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+  gui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.83.0
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Test GUI crate
+        run: cargo test -p spyder-gui
+      - name: Build web UI
+        working-directory: web
+        run: npm ci && npm run build
+
   python:
     runs-on: ubuntu-latest
     steps:

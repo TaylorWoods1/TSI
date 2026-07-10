@@ -9,6 +9,7 @@ dist/
 .env.*
 !.env.example
 *.html
+!web/index.html
 *.log
 .next/
 node_modules/

@@ -3,6 +3,7 @@
 pub mod api;
 pub mod design;
 pub mod dto;
+pub mod run_svc;
 pub mod sim_svc;
 pub mod state;
 pub mod toml_venue;

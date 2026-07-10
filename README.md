@@ -8,6 +8,7 @@ Supports **N ≥ 3 motors**, rectangular and polygonal presets, irregular anchor
 
 ```bash
 cargo test
+cargo run -p spyder-gui   # API + UI at http://127.0.0.1:7700 (build web/ first)
 cargo run -p spyder-cli -- ik configs/rect_4.toml 0,0,2
 cargo run -p spyder-cli -- workspace configs/rect_4.toml artifacts/workspace_rect4
 # open artifacts/workspace_rect4.html
@@ -80,7 +81,19 @@ Firmware: `firmware/spyder_stepper/spyder_stepper.ino`
 | `spyder-runtime` | Backends, `Player`, safety, calibration, axis map, feedback |
 | `spyder-stepper-sim` | TCP firmware simulator |
 | `spyder-cli` | `ik` / `fk` / `workspace` / `scene` / `calibrate` / `play` |
+| `spyder-gui` | Local Design / Simulate / Run GUI (Axum + React) |
 | `python/` | PyO3 bindings |
+
+## GUI
+
+```bash
+cd web && npm ci && npm run build
+cargo run -p spyder-gui
+# open http://127.0.0.1:7700
+
+# optional: Vite dev server with API proxy
+cd web && npm run dev
+```
 
 ## Conventions
 

@@ -11,8 +11,85 @@ use axum::{
 };
 use crate::design::{from_preset, load_venue, set_anchors, venue_toml};
 use crate::dto::*;
+use crate::run_svc::RunSession;
 use crate::sim_svc::{feasible, fk, ik, jacobian, scene_snapshot, traj_line, workspace};
 use crate::state::AppState;
+use spyder_runtime::MotorBackend;
+
+async fn run_connect(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ConnectRequest>,
+) -> Result<Json<ConnectResponse>, ApiError> {
+    if req.backend != "mock" {
+        return Err(ApiError(format!(
+            "only mock backend supported in GUI MVP (got {})",
+            req.backend
+        )));
+    }
+    let robot = state.robot.lock().await;
+    let home = *state.home.lock().await;
+    let n = robot.anchors.len();
+    let session = RunSession::connect_mock(&robot, home)?;
+    drop(robot);
+    *state.run_session.lock().await = Some(session);
+    Ok(Json(ConnectResponse { ok: true, axes: n }))
+}
+
+async fn run_disconnect(State(state): State<Arc<AppState>>) -> Json<OkResponse> {
+    *state.run_session.lock().await = None;
+    Json(OkResponse { ok: true })
+}
+
+async fn run_home(State(state): State<Arc<AppState>>) -> Result<Json<OkResponse>, ApiError> {
+    let mut session = state.run_session.lock().await;
+    let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
+    if session.estopped {
+        return Err(ApiError("e-stop latched".into()));
+    }
+    session.mock.home_hardware().map_err(|e| ApiError(e.to_string()))?;
+    session.last_steps = session.mock.positions().to_vec();
+    Ok(Json(OkResponse { ok: true }))
+}
+
+async fn run_play_line(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PlayLineRequest>,
+) -> Result<Json<PlayLineResponse>, ApiError> {
+    let robot = state.robot.lock().await;
+    let mut session = state.run_session.lock().await;
+    let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
+    Ok(Json(session.play_line(&robot, &req)?))
+}
+
+async fn run_estop(State(state): State<Arc<AppState>>) -> Result<Json<OkResponse>, ApiError> {
+    let mut session = state.run_session.lock().await;
+    let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
+    session.estop()?;
+    Ok(Json(OkResponse { ok: true }))
+}
+
+async fn run_clear_estop(State(state): State<Arc<AppState>>) -> Result<Json<OkResponse>, ApiError> {
+    let mut session = state.run_session.lock().await;
+    let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
+    session.clear_estop();
+    Ok(Json(OkResponse { ok: true }))
+}
+
+async fn run_status(State(state): State<Arc<AppState>>) -> Json<RunStatusResponse> {
+    let robot = state.robot.lock().await;
+    let session = state.run_session.lock().await;
+    if let Some(ref s) = *session {
+        Json(s.status(&robot))
+    } else {
+        Json(RunStatusResponse {
+            connected: false,
+            backend: None,
+            estopped: false,
+            steps: None,
+            pose: None,
+        })
+    }
+}
 
 /// Build the API router.
 pub fn router(state: Arc<AppState>) -> Router {
@@ -29,6 +106,13 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/workspace", post(workspace_route))
         .route("/traj/line", post(traj_line_route))
         .route("/scene/snapshot", post(scene_snapshot_route))
+        .route("/run/connect", post(run_connect))
+        .route("/run/disconnect", post(run_disconnect))
+        .route("/run/home", post(run_home))
+        .route("/run/play_line", post(run_play_line))
+        .route("/run/estop", post(run_estop))
+        .route("/run/clear_estop", post(run_clear_estop))
+        .route("/run/status", get(run_status))
         .with_state(state)
 }
 
@@ -245,27 +329,44 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn traj_line_returns_waypoints() {
-        let app = router(AppState::new_rect());
-        let body = serde_json::json!({
-            "start": [0.0, 0.0, 2.0],
-            "end": [0.5, 0.0, 2.0],
-            "segments": 4
-        });
+    async fn mock_run_play_nonzero_steps() {
+        let state = AppState::new_rect();
+        let app = router(state.clone());
+        let connect = serde_json::json!({ "backend": "mock" });
         let resp = app
+            .clone()
             .oneshot(
                 http::Request::builder()
                     .method("POST")
-                    .uri("/traj/line")
+                    .uri("/run/connect")
                     .header("content-type", "application/json")
-                    .body(http_body_util::Full::new(Bytes::from(body.to_string())))
+                    .body(http_body_util::Full::new(Bytes::from(connect.to_string())))
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(resp.status(), 200);
-        let v: TrajLineResponse = body_json(resp).await;
-        assert_eq!(v.waypoints.len(), 5);
-        assert_eq!(v.lengths.len(), 5);
+
+        let play = serde_json::json!({
+            "start": [0.0, 0.0, 2.0],
+            "end": [0.5, 0.0, 2.0],
+            "segments": 5,
+            "closed_loop": false,
+            "realtime": false
+        });
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/run/play_line")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(play.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let v: PlayLineResponse = body_json(resp).await;
+        assert!(v.final_steps.iter().any(|s| *s != 0));
     }
 }

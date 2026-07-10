@@ -284,3 +284,49 @@ pub struct SceneSnapshotResponse {
 pub struct OkResponse {
     pub ok: bool,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConnectRequest {
+    /// `mock`, `stepper`, `odrive`, or `multiboard`.
+    pub backend: String,
+    #[serde(default)]
+    pub device: Option<String>,
+    #[serde(default)]
+    pub baud: Option<u32>,
+    #[serde(default)]
+    pub axis_map: Option<serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConnectResponse {
+    pub ok: bool,
+    pub axes: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlayLineRequest {
+    pub start: [f64; 3],
+    pub end: [f64; 3],
+    pub segments: usize,
+    pub closed_loop: bool,
+    pub realtime: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlayLineResponse {
+    pub final_steps: Vec<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback_pose: Option<[f64; 3]>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RunStatusResponse {
+    pub connected: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backend: Option<String>,
+    pub estopped: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steps: Option<Vec<i64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pose: Option<[f64; 3]>,
+}

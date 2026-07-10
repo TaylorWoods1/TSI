@@ -1,0 +1,243 @@
+:root {
+  --bg-deep: #0a0f14;
+  --bg-mid: #121a22;
+  --bg-panel: rgba(18, 26, 34, 0.92);
+  --accent: #3dd6c6;
+  --accent-dim: #2a9d8f;
+  --warn: #f4a261;
+  --danger: #e63946;
+  --text: #e8eef2;
+  --text-dim: #8a9bab;
+  --border: rgba(61, 214, 198, 0.15);
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(ellipse 120% 80% at 50% 0%, #1a2830 0%, var(--bg-deep) 55%);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(10, 15, 20, 0.95), transparent);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--accent);
+  border-color: var(--border);
+  background: rgba(61, 214, 198, 0.08);
+}
+
+.main {
+  min-height: 0;
+  position: relative;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.4rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.status-bar .ok {
+  color: var(--accent);
+}
+
+.status-bar .danger {
+  color: var(--danger);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.page {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  height: 100%;
+}
+
+.viewport {
+  position: relative;
+  min-height: 0;
+}
+
+.inspector {
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inspector h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.field input,
+.field select {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.btn {
+  background: rgba(61, 214, 198, 0.12);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(61, 214, 198, 0.22);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: rgba(230, 57, 70, 0.15);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-size: 1.1rem;
+  padding: 0.85rem;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(230, 57, 70, 0.3);
+}
+
+.readout {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
+.anchor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.anchor-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.anchor-card strong {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.hidden-input {
+  display: none;
+}

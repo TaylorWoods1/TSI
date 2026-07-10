@@ -6,6 +6,7 @@ use spyder_core::{Preset, Robot, Vec3};
 use tokio::sync::Mutex;
 
 use crate::dto::VenueDto;
+use crate::run_svc::RunSession;
 
 /// Server-side robot and home pose.
 pub struct AppState {
@@ -13,6 +14,8 @@ pub struct AppState {
     pub robot: Mutex<Robot>,
     /// Home pose for calibration / playback.
     pub home: Mutex<Vec3>,
+    /// Optional connected run session.
+    pub run_session: Mutex<Option<RunSession>>,
 }
 
 impl AppState {
@@ -27,6 +30,7 @@ impl AppState {
         Arc::new(Self {
             robot: Mutex::new(robot),
             home: Mutex::new(Vec3::new(0.0, 0.0, 2.0)),
+            run_session: Mutex::new(None),
         })
     }
 }

@@ -117,4 +117,17 @@ mod tests {
         let i = Ideal.length(&a, &b, &CableContext::default()).unwrap();
         assert_relative_eq!(p.geometric, i.geometric);
     }
+
+    #[test]
+    fn attachment_inside_pulley_cylinder_errors() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(0.01, 0.0, 0.0);
+        let pulley = Pulley::new(Vec3::z(), 0.05).unwrap();
+        assert!(pulley.length(&a, &b, &CableContext::default()).is_err());
+    }
+
+    #[test]
+    fn zero_axis_errors() {
+        assert!(Pulley::new(Vec3::zeros(), 0.05).is_err());
+    }
 }

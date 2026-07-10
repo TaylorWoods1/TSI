@@ -65,4 +65,18 @@ mod tests {
         assert_eq!(cmd.steps, 200);
         assert_relative_eq!(cmd.winch_radians, 2.0 * std::f64::consts::PI, epsilon = 1e-9);
     }
+
+    #[test]
+    fn synchronized_delays_scale_by_step_magnitude() {
+        let delays = synchronized_step_delays(&[100, -50, 0], 2.0);
+        assert_eq!(delays[2], 0.0);
+        assert_relative_eq!(delays[0], 2.0 / 100.0);
+        assert_relative_eq!(delays[1], 2.0 / 50.0);
+    }
+
+    #[test]
+    fn zero_steps_returns_zero_delays() {
+        let delays = synchronized_step_delays(&[0, 0], 1.0);
+        assert_eq!(delays, vec![0.0, 0.0]);
+    }
 }

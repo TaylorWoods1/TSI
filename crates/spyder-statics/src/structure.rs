@@ -60,3 +60,37 @@ pub enum StructureError {
     #[error("invalid configuration: {0}")]
     Config(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn structure_matrix_3_columns_are_unit_pulls() {
+        let u1 = Vec3::new(1.0, 0.0, 0.0);
+        let u2 = Vec3::new(0.0, 1.0, 0.0);
+        let a = structure_matrix_3(&[u1, u2]).unwrap();
+        assert_eq!(a.nrows(), 3);
+        assert_eq!(a.ncols(), 2);
+        assert_relative_eq!(a[(0, 0)], 1.0);
+        assert_relative_eq!(a[(1, 1)], 1.0);
+    }
+
+    #[test]
+    fn structure_matrix_6_includes_torque_rows() {
+        let u = Vec3::new(0.0, 0.0, -1.0);
+        let b = Vec3::new(0.5, 0.0, 0.0);
+        let a = structure_matrix_6(&[u], &[b]).unwrap();
+        assert_eq!(a.nrows(), 6);
+        assert_relative_eq!(a[(3, 0)], 0.0);
+        assert_relative_eq!(a[(4, 0)], 0.5);
+        assert_relative_eq!(a[(5, 0)], 0.0);
+    }
+
+    #[test]
+    fn length_mismatch_errors() {
+        let err = structure_matrix_6(&[Vec3::x()], &[]).unwrap_err();
+        assert!(matches!(err, StructureError::Config(_)));
+    }
+}

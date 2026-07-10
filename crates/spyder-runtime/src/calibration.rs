@@ -172,6 +172,7 @@ impl Calibration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
     use spyder_core::Preset;
     use std::path::PathBuf;
 
@@ -216,5 +217,21 @@ mod tests {
         assert!(toml.contains("[home]"));
         assert!(toml.contains("z = 1.5"));
         assert!(toml.contains("point_mass = true"));
+    }
+
+    #[test]
+    fn apply_anchor_override_updates_exits() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let mut r = robot.clone();
+        let overrides = [[9.0, 9.0, 9.0]; 4];
+        apply_anchor_override(&mut r, &overrides).unwrap();
+        assert_relative_eq!(r.anchors[0].exit.x, 9.0);
+        let err = apply_anchor_override(&mut r, &[[1.0, 2.0, 3.0]]);
+        assert!(err.is_err());
     }
 }

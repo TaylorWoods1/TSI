@@ -7,7 +7,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::process;
 
-use spyder_core::{Anchor, Pose, Preset, Robot, Vec3};
+use spyder_core::{Pose, Robot, Vec3};
+
+mod toml;
+use toml::robot_from_toml;
 
 fn usage() -> ! {
     eprintln!(
@@ -52,121 +55,6 @@ fn parse_list(s: &str) -> Vec<f64> {
     s.split(',')
         .map(|t| t.trim().parse().expect("float"))
         .collect()
-}
-
-fn robot_from_toml(text: &str) -> Robot {
-    use spyder_core::PlatformAttachment;
-
-    let mut preset = String::from("rect");
-    let mut width = None;
-    let mut depth = None;
-    let mut height = None;
-    let mut n = None;
-    let mut radius = None;
-    let mut point_mass = true;
-    let mut anchors: Vec<Anchor> = Vec::new();
-    let mut attachments: Vec<PlatformAttachment> = Vec::new();
-    let mut cur_xyz: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
-    let mut cur_kind = ""; // "anchor" | "attachment"
-
-    let flush = |cur: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
-                 kind: &str,
-                 anchors: &mut Vec<Anchor>,
-                 attachments: &mut Vec<PlatformAttachment>| {
-        if let Some((x, y, z)) = cur.take() {
-            let v = Vec3::new(
-                x.expect("x"),
-                y.expect("y"),
-                z.expect("z"),
-            );
-            if kind == "anchor" {
-                anchors.push(Anchor::point(v));
-            } else if kind == "attachment" {
-                attachments.push(PlatformAttachment::at(v));
-            }
-        }
-    };
-
-    for raw in text.lines() {
-        let line = raw.split('#').next().unwrap_or("").trim();
-        if line.is_empty() {
-            continue;
-        }
-        if line == "[[anchors]]" {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
-            cur_kind = "anchor";
-            cur_xyz = Some((None, None, None));
-            continue;
-        }
-        if line == "[[attachments]]" {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
-            cur_kind = "attachment";
-            cur_xyz = Some((None, None, None));
-            continue;
-        }
-        if line.starts_with('[') {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
-            cur_kind = "";
-            continue;
-        }
-        if let Some((k, v)) = line.split_once('=') {
-            let k = k.trim();
-            let v = v.trim().trim_matches('"');
-            if let Some(tuple) = cur_xyz.as_mut() {
-                match k {
-                    "x" => tuple.0 = Some(v.parse().unwrap()),
-                    "y" => tuple.1 = Some(v.parse().unwrap()),
-                    "z" => tuple.2 = Some(v.parse().unwrap()),
-                    _ => {}
-                }
-                continue;
-            }
-            match k {
-                "preset" => preset = v.to_string(),
-                "width" => width = Some(v.parse().unwrap()),
-                "depth" => depth = Some(v.parse().unwrap()),
-                "height" => height = Some(v.parse().unwrap()),
-                "n" => n = Some(v.parse().unwrap()),
-                "radius" => radius = Some(v.parse().unwrap()),
-                "point_mass" => point_mass = v.parse().unwrap(),
-                _ => {}
-            }
-        }
-    }
-    flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
-
-    if !anchors.is_empty() {
-        let atts = if attachments.is_empty() {
-            None
-        } else {
-            Some(attachments)
-        };
-        let mut r = Robot::from_anchors(anchors, atts, point_mass).expect("robot");
-        r.point_mass = point_mass;
-        return r;
-    }
-
-    let p = match preset.as_str() {
-        "rect" => Preset::Rect {
-            width: width.expect("width"),
-            depth: depth.expect("depth"),
-            height: height.expect("height"),
-        },
-        "polygon" => Preset::RegularPolygon {
-            n: n.expect("n"),
-            radius: radius.expect("radius"),
-            height: height.expect("height"),
-        },
-        other => panic!("unknown preset {other}"),
-    };
-    let mut r = Robot::from_preset(p).expect("robot");
-    if !attachments.is_empty() {
-        r.attachments = attachments;
-        r.point_mass = point_mass;
-    } else {
-        r.point_mass = point_mass;
-    }
-    r
 }
 
 fn default_workspace(robot: &Robot) -> spyder_sim::WorkspaceReport {

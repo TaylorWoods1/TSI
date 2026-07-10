@@ -495,6 +495,7 @@ pub fn write_scene_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
     use crate::{sample_wrench_feasible, SampleBox};
     use nalgebra::DVector;
     use spyder_core::Preset;
@@ -551,5 +552,21 @@ mod tests {
         assert!(html.contains("Plotly.addFrames"));
         assert!(html.contains("Play"));
         assert!(html.contains("workspace"));
+    }
+
+    #[test]
+    fn scene_snapshot_matches_ik_lengths() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let pose = Pose::from_position(Vec3::new(0.1, -0.1, 1.2));
+        let snap = SceneSnapshot::from_robot(&robot, &pose).unwrap();
+        let ik = robot.ik(&pose).unwrap();
+        assert_eq!(snap.lengths, ik.lengths);
+        assert_relative_eq!(snap.dolly[2], 1.2);
+        assert_eq!(snap.anchors.len(), 4);
     }
 }

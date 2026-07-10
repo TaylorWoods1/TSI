@@ -839,6 +839,7 @@ dependencies = [
 name = "spyder-cli"
 version = "0.1.0"
 dependencies = [
+ "approx",
  "nalgebra",
  "spyder-core",
  "spyder-runtime",
@@ -893,6 +894,7 @@ dependencies = [
  "spyder-actuation",
  "spyder-core",
  "spyder-sim",
+ "spyder-stepper-sim",
  "thiserror",
 ]
 

@@ -202,4 +202,24 @@ mod tension_tests {
         let r_cf = &a * &f_cf + &w;
         assert!(r_cf.norm() < 1e-8);
     }
+
+    #[test]
+    fn closed_form_rejects_fmin_gt_fmax() {
+        let a = DMatrix::identity(3, 3);
+        let w = DVector::zeros(3);
+        assert!(matches!(
+            closed_form_tensions(&a, &w, 10.0, 1.0),
+            Err(TensionError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn closed_form_rejects_dimension_mismatch() {
+        let a = DMatrix::identity(3, 2);
+        let w = DVector::zeros(2);
+        assert!(matches!(
+            closed_form_tensions(&a, &w, 0.5, 10.0),
+            Err(TensionError::Config(_))
+        ));
+    }
 }

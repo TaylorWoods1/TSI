@@ -1,5 +1,7 @@
 const BASE =
-  import.meta.env.DEV && window.location.port === "5173"
+  import.meta.env.DEV &&
+  typeof window !== "undefined" &&
+  window.location.port === "5173"
     ? ""
     : "http://127.0.0.1:7700";
 

@@ -14,6 +14,7 @@ dist/
 .next/
 node_modules/
 python/.venv/
+__pycache__/
 **/*.rs.bk
 .superpowers/
 **/target/

@@ -516,4 +516,25 @@ mod tests {
         assert!(q_err < 1e-3, "orientation error {q_err}");
         assert!(fk.residual < 1e-6);
     }
+
+    #[test]
+    fn from_anchors_rejects_too_few_cables() {
+        let anchors = rect(4.0, 4.0, 3.0).unwrap();
+        let two: Vec<_> = anchors.into_iter().take(2).collect();
+        assert!(Robot::from_anchors(two, None, true).is_err());
+    }
+
+    #[test]
+    fn sag_without_wrench_errors() {
+        use spyder_cables::Sag;
+        let mut robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        robot.cable_model = CableModelKind::Sag(Sag::default());
+        let pose = Pose::from_position(Vec3::new(0.0, 0.0, 1.5));
+        assert!(robot.ik(&pose).is_err());
+    }
 }

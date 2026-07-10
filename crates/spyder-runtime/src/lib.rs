@@ -422,4 +422,37 @@ mod tests {
         player.clear_estop();
         assert!(player.move_to(Vec3::new(0.1, 0.0, 1.0), 1.0).is_ok());
     }
+
+    #[test]
+    fn plan_line_lengths_matches_waypoint_count() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let axes = uniform_axes(4, 0.05, 200.0).unwrap();
+        let home = Vec3::new(0.0, 0.0, 1.0);
+        let player = Player::new(&robot, axes, MockBackend::new(4), home).unwrap();
+        let lengths = player
+            .plan_line_lengths(home, Vec3::new(0.3, 0.0, 1.0), 4)
+            .unwrap();
+        assert_eq!(lengths.len(), 5);
+    }
+
+    #[test]
+    fn apply_calibration_updates_home_lengths() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let axes = uniform_axes(4, 0.05, 200.0).unwrap();
+        let home = Vec3::new(0.0, 0.0, 1.0);
+        let mut player = Player::new(&robot, axes, MockBackend::new(4), home).unwrap();
+        let cal = Calibration::capture(&robot, home, 0.05, 200.0).unwrap();
+        player.apply_calibration(&cal).unwrap();
+        assert_eq!(player.home_lengths, cal.home_lengths_m);
+    }
 }

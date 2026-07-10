@@ -84,3 +84,22 @@ pub fn classify_robot(robot: &Robot) -> Result<String, String> {
         .map(|c| c.as_str().to_string())
         .map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_cable_model_parses_known_kinds() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let mut r = robot;
+        apply_cable_model(&mut r, "pulley").unwrap();
+        assert_eq!(cable_model_str(&r.cable_model), "pulley");
+        assert!(apply_cable_model(&mut r, "nope").is_err());
+    }
+}

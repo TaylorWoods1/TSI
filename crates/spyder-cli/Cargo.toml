@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "Command-line interface for spyder IK/FK"
 
+[lib]
+name = "spyder_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "spyder"
 path = "src/main.rs"
@@ -14,3 +18,6 @@ spyder-core = { path = "../spyder-core" }
 spyder-sim = { path = "../spyder-sim" }
 spyder-runtime = { path = "../spyder-runtime" }
 nalgebra = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

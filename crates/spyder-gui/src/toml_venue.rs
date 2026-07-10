@@ -208,4 +208,9 @@ z = 2.0
         assert_eq!(robot.anchors.len(), 4);
         assert!((home.z - 2.0).abs() < 1e-9);
     }
+
+    #[test]
+    fn parse_empty_config_errors() {
+        assert!(parse_venue_toml("point_mass = true\n").is_err());
+    }
 }

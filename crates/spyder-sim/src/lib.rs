@@ -181,4 +181,18 @@ mod tests {
         assert_eq!(pts[0], Vec3::new(0.0, 0.0, 1.0));
         assert_eq!(pts[4], Vec3::new(1.0, 0.0, 1.0));
     }
+
+    #[test]
+    fn trajectory_lengths_one_per_waypoint() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let pts = line_waypoints(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.5, 0.0, 1.0), 3);
+        let lens = trajectory_lengths(&robot, &pts).unwrap();
+        assert_eq!(lens.len(), pts.len());
+        assert_eq!(lens[0].len(), 4);
+    }
 }

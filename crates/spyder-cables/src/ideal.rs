@@ -36,4 +36,11 @@ mod tests {
             .expect("length");
         assert_relative_eq!(len.geometric, 5.0);
     }
+
+    #[test]
+    fn zero_length_returns_geometry_error() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let m = Ideal;
+        assert!(m.length(&a, &a, &CableContext::default()).is_err());
+    }
 }

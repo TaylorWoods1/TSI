@@ -44,3 +44,33 @@ impl Winch {
         self.direction * radians * self.radius
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn rejects_non_positive_radius() {
+        assert!(Winch::new(0.0, 1.0).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_direction() {
+        assert!(Winch::new(0.05, 0.0).is_err());
+    }
+
+    #[test]
+    fn length_radians_round_trip() {
+        let w = Winch::new(0.05, 1.0).unwrap();
+        let delta = 0.25;
+        let rad = w.length_delta_to_radians(delta);
+        assert_relative_eq!(w.radians_to_length_delta(rad), delta);
+    }
+
+    #[test]
+    fn negative_direction_flips_sign() {
+        let w = Winch::new(0.05, -1.0).unwrap();
+        assert!(w.length_delta_to_radians(0.1) < 0.0);
+    }
+}

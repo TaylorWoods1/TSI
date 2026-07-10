@@ -18,3 +18,4 @@ serialport = "=4.2.2"
 
 [dev-dependencies]
 approx = { workspace = true }
+spyder-stepper-sim = { path = "../spyder-stepper-sim" }

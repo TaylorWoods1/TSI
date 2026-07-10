@@ -40,3 +40,30 @@ impl Motor {
         motor_revs * self.steps_per_rev
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_non_positive_steps_per_rev() {
+        assert!(Motor::new(0.0, 1.0).is_err());
+        assert!(Motor::new(-1.0, 1.0).is_err());
+    }
+
+    #[test]
+    fn rejects_non_positive_gear_ratio() {
+        assert!(Motor::new(200.0, 0.0).is_err());
+    }
+
+    #[test]
+    fn gear_ratio_doubles_steps() {
+        let direct = Motor::new(200.0, 1.0).unwrap();
+        let geared = Motor::new(200.0, 2.0).unwrap();
+        let rad = std::f64::consts::PI;
+        assert_eq!(
+            geared.winch_radians_to_steps(rad),
+            direct.winch_radians_to_steps(rad) * 2.0
+        );
+    }
+}

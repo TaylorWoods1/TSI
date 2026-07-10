@@ -369,4 +369,102 @@ mod tests {
         let v: PlayLineResponse = body_json(resp).await;
         assert!(v.final_steps.iter().any(|s| *s != 0));
     }
+
+    #[tokio::test]
+    async fn fk_round_trip_after_ik() {
+        let app = router(AppState::new_rect());
+        let ik_body = serde_json::json!({ "xyz": [0.0, 0.0, 2.0] });
+        let ik_resp = app
+            .clone()
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/ik")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(ik_body.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let ik: IkResponse = body_json(ik_resp).await;
+
+        let fk_body = serde_json::json!({
+            "lengths": ik.lengths,
+            "seed": [0.0, 0.0, 2.0]
+        });
+        let fk_resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/fk")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(fk_body.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(fk_resp.status(), 200);
+        let fk: FkResponse = body_json(fk_resp).await;
+        assert!((fk.xyz[2] - 2.0).abs() < 0.01);
+    }
+
+    #[tokio::test]
+    async fn invalid_toml_returns_400() {
+        let app = router(AppState::new_rect());
+        let body = serde_json::json!({ "toml": "preset = \"rect\"\nwidth = oops" });
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/venue/load")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(body.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 400);
+    }
+
+    #[tokio::test]
+    async fn run_status_disconnected_by_default() {
+        let app = router(AppState::new_rect());
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .uri("/run/status")
+                    .body(http_body_util::Empty::<Bytes>::new())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let s: RunStatusResponse = body_json(resp).await;
+        assert!(!s.connected);
+    }
+
+    #[tokio::test]
+    async fn traj_line_returns_waypoints() {
+        let app = router(AppState::new_rect());
+        let body = serde_json::json!({
+            "start": [0.0, 0.0, 2.0],
+            "end": [0.5, 0.0, 2.0],
+            "segments": 4
+        });
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/traj/line")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(body.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let v: TrajLineResponse = body_json(resp).await;
+        assert_eq!(v.waypoints.len(), 5);
+        assert_eq!(v.lengths.len(), 5);
+    }
 }

@@ -133,4 +133,21 @@ mod tests {
         );
         assert_relative_eq!(len.geometric, (10.0f64.hypot(5.0)), epsilon = 1e-9);
     }
+
+    #[test]
+    fn missing_tension_errors() {
+        let sag = Sag::default();
+        let a = Vec3::new(0.0, 0.0, 5.0);
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        assert!(sag.length(&a, &b, &CableContext::default()).is_err());
+    }
+
+    #[test]
+    fn non_positive_tension_errors() {
+        let sag = Sag::default();
+        let a = Vec3::new(0.0, 0.0, 5.0);
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        let ctx = CableContext { tension: Some(0.0) };
+        assert!(sag.length(&a, &b, &ctx).is_err());
+    }
 }

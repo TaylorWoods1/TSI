@@ -224,4 +224,17 @@ mod tests {
         assert!(s.check_lengths(&[0.05, 1.0, 1.0, 1.0]).is_err());
         assert!(s.check_lengths(&[40.0, 1.0, 1.0, 1.0]).is_err());
     }
+
+    #[test]
+    fn rejects_step_burst_over_limit() {
+        let s = SafetyLimits {
+            max_steps_per_move: 100,
+            ..SafetyLimits::default()
+        };
+        assert!(s.check_steps(&[50, 50, 0, 0]).is_ok());
+        assert!(matches!(
+            s.check_steps(&[200, 0, 0, 0]).unwrap_err(),
+            RuntimeError::Safety(msg) if msg.contains("steps")
+        ));
+    }
 }

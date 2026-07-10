@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "TCP simulator for spyder stepper firmware protocol"
 
+[lib]
+name = "spyder_stepper_sim"
+path = "src/lib.rs"
+
 [[bin]]
 name = "spyder-stepper-sim"
 path = "src/main.rs"

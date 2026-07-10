@@ -121,3 +121,28 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
 ```
 
 `Player::with_realtime(true)` sleeps per segment for wall-clock playback.
+
+## GUI API (dev)
+
+Start the local GUI server (default `http://127.0.0.1:7700`):
+
+```bash
+cargo run -p spyder-gui
+```
+
+Smoke the JSON API:
+
+```bash
+curl -s localhost:7700/health
+curl -s -X POST localhost:7700/venue/from_preset \
+  -H 'Content-Type: application/json' \
+  -d '{"kind":"rect","width":10,"depth":6,"height":8,"point_mass":true}'
+curl -s -X POST localhost:7700/ik \
+  -H 'Content-Type: application/json' \
+  -d '{"xyz":[0,0,2]}'
+curl -s -X POST localhost:7700/workspace \
+  -H 'Content-Type: application/json' \
+  -d '{"min":[-2,-2,0.5],"max":[2,2,4],"nx":5,"ny":5,"nz":4,"mg":9.81,"f_min":0.5,"f_max":500}'
+```
+
+See `docs/superpowers/specs/2026-07-10-spyder-gui-design.md` for the full route table.

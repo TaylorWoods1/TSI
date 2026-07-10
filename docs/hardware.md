@@ -73,6 +73,19 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 20 \
 
 `Player` applies calibration, homes software zeros, and can correct pose from encoder/step feedback (`P` / ODrive `f`) when `--closed-loop` is set.
 
+### Field calibration → venue TOML
+
+Measure anchor XYZ in the venue frame, then generate a loadable config:
+
+```bash
+cargo run -p spyder-cli -- field-cal \
+  "5,3,8;-5,3,8;-5,-3,8;5,-3,8" 0,0,1.5 artifacts/venue.toml
+
+# Or convert an existing calibration JSON
+cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.json
+cargo run -p spyder-cli -- venue-from-cal artifacts/cal.json artifacts/venue.toml
+```
+
 ## Safety
 
 `SafetyLimits` in the Player enforce soft workspace bounds, max speed, cable length range, and step-burst size. E-stop is available via `MotorBackend::estop` (firmware `E`).

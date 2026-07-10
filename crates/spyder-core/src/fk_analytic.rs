@@ -58,6 +58,7 @@ pub fn fk_analytic_3(
 
     Ok(FkResult {
         position: pick,
+        orientation: crate::types::UnitQuat::identity(),
         residual,
         iterations: 0,
         method: FkMethod::Analytic3,

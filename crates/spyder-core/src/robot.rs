@@ -275,72 +275,40 @@ impl Robot {
     }
 
     /// Forward kinematics (ideal length measurements).
+    ///
+    /// Point-mass: analytic fast paths when available, else numeric 3DOF.
+    /// Platform: numeric 6DOF (position + orientation) seeded at `seed` with
+    /// identity orientation — prefer [`Self::fk_with_seed`] when orientation is known.
     pub fn fk(&self, lengths: &[f64], seed: Vec3) -> Result<FkResult> {
+        self.fk_with_seed(lengths, &Pose::from_position(seed))
+    }
+
+    /// FK with a full pose seed (important for platform orientation).
+    pub fn fk_with_seed(&self, lengths: &[f64], seed: &Pose) -> Result<FkResult> {
         if !self.point_mass {
-            return self.fk_platform_translation(lengths, seed);
+            return crate::fk::fk_platform_numeric(
+                &self.anchors,
+                &self.attachments,
+                lengths,
+                seed,
+            );
         }
         let exits: Vec<Vec3> = self.anchors.iter().map(|a| a.exit).collect();
         if exits.len() == 3 {
             return fk_analytic_3(
-                exits[0], exits[1], exits[2], lengths[0], lengths[1], lengths[2], seed,
+                exits[0],
+                exits[1],
+                exits[2],
+                lengths[0],
+                lengths[1],
+                lengths[2],
+                seed.position,
             );
         }
         if is_axis_aligned_rect4(&exits) {
-            return fk_analytic_rect4(&exits, lengths, seed);
+            return fk_analytic_rect4(&exits, lengths, seed.position);
         }
-        fk_point_mass_numeric(&exits, lengths, seed)
-    }
-
-    fn fk_platform_translation(&self, lengths: &[f64], seed: Vec3) -> Result<FkResult> {
-        let mut p = seed;
-        let max_iters = 50;
-        let mut residual = f64::INFINITY;
-        let mut iterations = 0;
-
-        for iter in 0..max_iters {
-            iterations = iter + 1;
-            let mut jtj = nalgebra::Matrix3::zeros();
-            let mut jtr = Vec3::zeros();
-            residual = 0.0;
-            let pose = Pose::from_position(p);
-            for (i, (anchor, att)) in self
-                .anchors
-                .iter()
-                .zip(self.attachments.iter())
-                .enumerate()
-            {
-                let b = pose.transform_point(&att.body_point);
-                let diff = b - anchor.exit;
-                let dist = diff.norm();
-                if dist <= f64::EPSILON {
-                    return Err(SpyderError::Geometry(
-                        "FK iterate coincides with anchor".into(),
-                    ));
-                }
-                let err = dist - lengths[i];
-                residual += err * err;
-                let u = diff / dist;
-                jtj += u * u.transpose();
-                jtr += u * err;
-            }
-            residual = residual.sqrt();
-            let delta = nalgebra::linalg::SVD::new(jtj, true, true)
-                .solve(&jtr, 1e-12)
-                .map_err(|_| SpyderError::SingularStructure)?;
-            p -= delta;
-            if delta.norm() < 1e-12 || residual < 1e-10 {
-                return Ok(FkResult {
-                    position: p,
-                    residual,
-                    iterations,
-                    method: crate::fk::FkMethod::NumericPointMass,
-                });
-            }
-        }
-        Err(SpyderError::FkNonConvergence {
-            residual,
-            iterations,
-        })
+        fk_point_mass_numeric(&exits, lengths, seed.position)
     }
 }
 
@@ -349,6 +317,7 @@ mod tests {
     use super::*;
     use crate::anchor::PlatformAttachment;
     use crate::ik::IkOptions;
+    use crate::types::UnitQuat;
     use approx::assert_relative_eq;
     use nalgebra::DVector;
 
@@ -510,5 +479,41 @@ mod tests {
             .length_jacobian(&Pose::from_position(Vec3::new(0.0, 0.0, 1.0)))
             .unwrap();
         assert_eq!((j.nrows(), j.ncols()), (4, 3));
+    }
+
+    #[test]
+    fn platform_6dof_ik_fk_round_trip() {
+        let anchors = rect(6.0, 4.0, 5.0).unwrap();
+        let offsets: Vec<_> = [
+            Vec3::new(0.2, 0.15, 0.0),
+            Vec3::new(-0.2, 0.15, 0.0),
+            Vec3::new(-0.2, -0.15, 0.0),
+            Vec3::new(0.2, -0.15, 0.0),
+            Vec3::new(0.0, 0.25, 0.05),
+            Vec3::new(0.0, -0.25, 0.05),
+        ]
+        .into_iter()
+        .map(PlatformAttachment::at)
+        .collect();
+        // 6 cables for full 6DOF observability: extend rect with two mid-side anchors
+        let mut anchors6 = anchors;
+        anchors6.push(crate::anchor::Anchor::point(Vec3::new(0.0, 3.0, 5.0)));
+        anchors6.push(crate::anchor::Anchor::point(Vec3::new(0.0, -3.0, 5.0)));
+        let robot = Robot::from_anchors(anchors6, Some(offsets), false).unwrap();
+        let orient = UnitQuat::from_scaled_axis(Vec3::new(0.05, -0.04, 0.08));
+        let pose = Pose::new(Vec3::new(0.15, -0.1, 1.5), orient);
+        let ik = robot.ik(&pose).unwrap();
+        let seed = Pose::new(
+            Vec3::new(0.0, 0.0, 1.6),
+            UnitQuat::from_scaled_axis(Vec3::new(0.02, 0.0, 0.03)),
+        );
+        let fk = robot.fk_with_seed(&ik.lengths, &seed).unwrap();
+        assert_eq!(fk.method, crate::fk::FkMethod::NumericPlatform6);
+        assert_relative_eq!(fk.position.x, pose.position.x, epsilon = 1e-4);
+        assert_relative_eq!(fk.position.y, pose.position.y, epsilon = 1e-4);
+        assert_relative_eq!(fk.position.z, pose.position.z, epsilon = 1e-4);
+        let q_err = (fk.orientation.inverse() * pose.orientation).scaled_axis().norm();
+        assert!(q_err < 1e-3, "orientation error {q_err}");
+        assert!(fk.residual < 1e-6);
     }
 }

@@ -18,8 +18,9 @@ cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.j
 cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
   --backend mock --closed-loop --cal artifacts/cal.json
 cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
-cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
-  --backend mock --axis-map configs/axis_map_dual_odrive.json
+cargo run -p spyder-cli -- field-cal \
+  "5,3,8;-5,3,8;-5,-3,8;5,-3,8" 0,0,1.5 artifacts/venue.toml
+cargo run -p spyder-cli -- venue-from-cal artifacts/cal.json artifacts/venue_from_cal.toml
 ```
 
 ## Python

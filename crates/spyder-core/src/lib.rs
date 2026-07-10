@@ -17,7 +17,9 @@ pub mod types;
 
 pub use anchor::{Anchor, PlatformAttachment};
 pub use error::{Result, SpyderError};
-pub use fk::{fk_point_mass_from_anchors, fk_point_mass_numeric, FkMethod, FkResult};
+pub use fk::{
+    fk_platform_numeric, fk_point_mass_from_anchors, fk_point_mass_numeric, FkMethod, FkResult,
+};
 pub use fk_analytic::{fk_analytic_3, fk_analytic_rect4, is_axis_aligned_rect4};
 pub use ik::{
     apply_ik_options, ideal_ik_point_mass, ik_ideal, ik_with_model, IkOptions, IkResult,

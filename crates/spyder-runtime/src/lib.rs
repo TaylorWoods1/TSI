@@ -17,7 +17,7 @@ use spyder_sim::{line_waypoints, trajectory_lengths};
 use thiserror::Error;
 
 pub use axis_map::{AxisEndpoint, AxisMap};
-pub use calibration::{apply_anchor_override, Calibration};
+pub use calibration::{apply_anchor_override, venue_toml_from_anchors, Calibration};
 pub use feedback::{length_error, lengths_from_steps, pose_from_steps, uniform_axes};
 pub use multi_board::MultiBoardBackend;
 pub use odrive::{ODriveAxis, ODriveBackend};

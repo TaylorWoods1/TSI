@@ -18,6 +18,9 @@ fn usage() -> ! {
   spyder scene <config.toml> <x,y,z> [out.html]
            [--to x,y,z] [--segments N] [--workspace]
   spyder calibrate <config.toml> <x,y,z> [out.json]
+  spyder field-cal <x,y,z;x,y,z;...> <home_x,y,z> [out.toml]
+           [--drum R] [--steps N] [--platform]
+  spyder venue-from-cal <cal.json> [out.toml]
   spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]
            [--backend mock|stepper|odrive|multiboard]
            [--device PATH|host:port] [--baud N]
@@ -36,6 +39,15 @@ fn parse_xyz(s: &str) -> Vec3 {
     Vec3::new(p[0], p[1], p[2])
 }
 
+fn parse_anchor_list(s: &str) -> Vec<[f64; 3]> {
+    s.split(';')
+        .map(|part| {
+            let p = parse_xyz(part.trim());
+            [p.x, p.y, p.z]
+        })
+        .collect()
+}
+
 fn parse_list(s: &str) -> Vec<f64> {
     s.split(',')
         .map(|t| t.trim().parse().expect("float"))
@@ -43,6 +55,8 @@ fn parse_list(s: &str) -> Vec<f64> {
 }
 
 fn robot_from_toml(text: &str) -> Robot {
+    use spyder_core::PlatformAttachment;
+
     let mut preset = String::from("rect");
     let mut width = None;
     let mut depth = None;
@@ -51,16 +65,25 @@ fn robot_from_toml(text: &str) -> Robot {
     let mut radius = None;
     let mut point_mass = true;
     let mut anchors: Vec<Anchor> = Vec::new();
-    let mut cur_anchor: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
+    let mut attachments: Vec<PlatformAttachment> = Vec::new();
+    let mut cur_xyz: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
+    let mut cur_kind = ""; // "anchor" | "attachment"
 
-    let flush_anchor = |cur: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
-                        anchors: &mut Vec<Anchor>| {
+    let flush = |cur: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
+                 kind: &str,
+                 anchors: &mut Vec<Anchor>,
+                 attachments: &mut Vec<PlatformAttachment>| {
         if let Some((x, y, z)) = cur.take() {
-            anchors.push(Anchor::point(Vec3::new(
-                x.expect("anchor.x"),
-                y.expect("anchor.y"),
-                z.expect("anchor.z"),
-            )));
+            let v = Vec3::new(
+                x.expect("x"),
+                y.expect("y"),
+                z.expect("z"),
+            );
+            if kind == "anchor" {
+                anchors.push(Anchor::point(v));
+            } else if kind == "attachment" {
+                attachments.push(PlatformAttachment::at(v));
+            }
         }
     };
 
@@ -70,18 +93,26 @@ fn robot_from_toml(text: &str) -> Robot {
             continue;
         }
         if line == "[[anchors]]" {
-            flush_anchor(&mut cur_anchor, &mut anchors);
-            cur_anchor = Some((None, None, None));
+            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
+            cur_kind = "anchor";
+            cur_xyz = Some((None, None, None));
+            continue;
+        }
+        if line == "[[attachments]]" {
+            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
+            cur_kind = "attachment";
+            cur_xyz = Some((None, None, None));
             continue;
         }
         if line.starts_with('[') {
-            flush_anchor(&mut cur_anchor, &mut anchors);
+            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
+            cur_kind = "";
             continue;
         }
         if let Some((k, v)) = line.split_once('=') {
             let k = k.trim();
             let v = v.trim().trim_matches('"');
-            if let Some(tuple) = cur_anchor.as_mut() {
+            if let Some(tuple) = cur_xyz.as_mut() {
                 match k {
                     "x" => tuple.0 = Some(v.parse().unwrap()),
                     "y" => tuple.1 = Some(v.parse().unwrap()),
@@ -102,10 +133,15 @@ fn robot_from_toml(text: &str) -> Robot {
             }
         }
     }
-    flush_anchor(&mut cur_anchor, &mut anchors);
+    flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments);
 
     if !anchors.is_empty() {
-        let mut r = Robot::from_anchors(anchors, None, point_mass).expect("robot");
+        let atts = if attachments.is_empty() {
+            None
+        } else {
+            Some(attachments)
+        };
+        let mut r = Robot::from_anchors(anchors, atts, point_mass).expect("robot");
         r.point_mass = point_mass;
         return r;
     }
@@ -124,7 +160,12 @@ fn robot_from_toml(text: &str) -> Robot {
         other => panic!("unknown preset {other}"),
     };
     let mut r = Robot::from_preset(p).expect("robot");
-    r.point_mass = point_mass;
+    if !attachments.is_empty() {
+        r.attachments = attachments;
+        r.point_mass = point_mass;
+    } else {
+        r.point_mass = point_mass;
+    }
     r
 }
 
@@ -205,9 +246,10 @@ fn main() {
             let robot = robot_from_toml(&text);
             let lens = parse_list(&lengths);
             let fk = robot.fk(&lens, parse_xyz(&seed)).expect("fk");
+            let rv = fk.orientation.scaled_axis();
             println!(
-                "position = [{:.6}, {:.6}, {:.6}] method={:?} residual={:.3e}",
-                fk.position.x, fk.position.y, fk.position.z, fk.method, fk.residual
+                "position = [{:.6}, {:.6}, {:.6}] orientation_rv = [{:.6}, {:.6}, {:.6}] method={:?} residual={:.3e}",
+                fk.position.x, fk.position.y, fk.position.z, rv.x, rv.y, rv.z, fk.method, fk.residual
             );
         }
         "workspace" => {
@@ -314,6 +356,70 @@ fn main() {
                 "calibration saved {out} home={:?} lengths={:?}",
                 cal.home, cal.home_lengths_m
             );
+        }
+        "field-cal" => {
+            use spyder_runtime::venue_toml_from_anchors;
+            let drum: f64 = take_flag(&mut args, "--drum")
+                .unwrap_or_else(|| "0.05".into())
+                .parse()
+                .expect("drum");
+            let steps: f64 = take_flag(&mut args, "--steps")
+                .unwrap_or_else(|| "200".into())
+                .parse()
+                .expect("steps");
+            let platform = args.iter().any(|a| a == "--platform");
+            args.retain(|a| a != "--platform");
+            if args.len() < 2 {
+                usage();
+            }
+            let anchors = parse_anchor_list(&args.remove(0));
+            let home = parse_xyz(&args.remove(0));
+            let out = if args.is_empty() {
+                "artifacts/venue.toml".into()
+            } else {
+                args.remove(0)
+            };
+            let text = venue_toml_from_anchors(
+                &anchors,
+                home,
+                !platform,
+                None,
+                drum,
+                steps,
+            )
+            .expect("venue");
+            let path = PathBuf::from(&out);
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            fs::write(&path, &text).expect("write venue");
+            // Smoke: load back and run IK at home
+            let robot = robot_from_toml(&text);
+            let ik = robot
+                .ik(&Pose::from_position(home))
+                .expect("ik at home");
+            println!(
+                "wrote {out} anchors={} point_mass={} home_lengths={:?}",
+                anchors.len(),
+                !platform,
+                ik.lengths
+            );
+        }
+        "venue-from-cal" => {
+            use spyder_runtime::Calibration;
+            if args.is_empty() {
+                usage();
+            }
+            let cal_path = args.remove(0);
+            let out = if args.is_empty() {
+                "artifacts/venue.toml".into()
+            } else {
+                args.remove(0)
+            };
+            let cal = Calibration::load_json(PathBuf::from(&cal_path).as_path()).expect("cal");
+            cal.save_venue_toml(PathBuf::from(&out).as_path(), true)
+                .expect("venue");
+            println!("wrote {out} from {cal_path}");
         }
         "axis-map-example" => {
             use spyder_runtime::AxisMap;

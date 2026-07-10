@@ -1,5 +1,7 @@
 # HANDOFF — Spyder GUI (new chat)
 
+> **SUPERSEDED (2026-07-10):** GUI MVP is implemented on `main`. Use [docs/gui.md](../../gui.md) and [README.md](../../../README.md) for current setup. This file is kept for historical context.
+
 ## Paste this as the new chat’s first message
 
 ```

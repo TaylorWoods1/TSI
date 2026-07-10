@@ -1,4 +1,7 @@
-//! Workspace sampling and simple trajectory helpers.
+//! Workspace sampling, 3D scene export, and trajectory helpers.
+//!
+//! Used by `spyder-cli` and `spyder-gui` for feasibility grids, HTML scenes,
+//! and segment-based motion planning.
 
 #![deny(missing_docs)]
 

@@ -1,9 +1,19 @@
 # Spyder GUI — Design / Simulate / Run
 
 **Date:** 2026-07-10  
-**Status:** Spec for implementation (handoff to new chat)  
-**Depends on:** `main` @ `9a189e8` (core + sim + runtime shipped)  
+**Status:** Implemented (MVP on `main`) — mock Run backend; partial Design UI  
 **License:** MIT  
+
+### MVP shipped vs planned
+
+| Area | Shipped | Planned |
+|------|---------|---------|
+| Axum API on `:7700` | Yes | — |
+| Design: rect preset, anchors, TOML load/save | Yes | Platform toggle, cable model, field-cal |
+| Simulate: traj play, workspace overlay | Yes | Waypoint editor |
+| Run: mock connect/play/e-stop | Yes | Stepper/ODrive via GUI |
+| SPA served from `web/dist` | Yes | Optional Tauri shell |
+| Playwright E2E | No | GUI-4 |
 
 ## 1. Intent
 

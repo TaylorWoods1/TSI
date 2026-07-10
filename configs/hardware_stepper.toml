@@ -13,6 +13,8 @@ y = 0.0
 z = 2.0
 
 [actuation]
+# NOTE: [actuation] is NOT parsed by venue loaders — documentation only.
+# Pass --baud to `spyder play`; drum/steps via calibration JSON or runtime defaults.
 drum_radius_m = 0.05
 steps_per_rev = 200
 gear_ratio = 1.0

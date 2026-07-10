@@ -236,15 +236,21 @@ pub struct WorkspaceRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceSampleDto {
+    /// Sample X (meters).
     pub x: f64,
+    /// Sample Y (meters).
     pub y: f64,
+    /// Sample Z (meters).
     pub z: f64,
+    /// Whether the pose is wrench-feasible.
     pub feasible: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceResponse {
+    /// Fraction of samples that are feasible.
     pub fraction: f64,
+    /// Per-grid-point results.
     pub samples: Vec<WorkspaceSampleDto>,
 }
 
@@ -274,59 +280,81 @@ pub struct SceneSnapshotRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SceneSnapshotResponse {
+    /// Anchor world positions.
     pub anchors: Vec<[f64; 3]>,
+    /// Dolly position.
     pub dolly: [f64; 3],
+    /// Attachment world points.
     pub attachments: Vec<[f64; 3]>,
+    /// Cable lengths at the pose.
     pub lengths: Vec<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OkResponse {
+    /// Operation succeeded.
     pub ok: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConnectRequest {
-    /// `mock`, `stepper`, `odrive`, or `multiboard`.
+    /// `mock`, `stepper`, `odrive`, or `multiboard` (GUI MVP: mock only).
     pub backend: String,
+    /// Serial path or `host:port` (hardware backends).
     #[serde(default)]
     pub device: Option<String>,
+    /// Serial baud rate.
     #[serde(default)]
     pub baud: Option<u32>,
+    /// Multi-board axis map JSON.
     #[serde(default)]
     pub axis_map: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConnectResponse {
+    /// Connection succeeded.
     pub ok: bool,
+    /// Number of motor axes.
     pub axes: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayLineRequest {
+    /// Line start `[x, y, z]`.
     pub start: [f64; 3],
+    /// Line end `[x, y, z]`.
     pub end: [f64; 3],
+    /// Number of Cartesian segments.
     pub segments: usize,
+    /// Enable closed-loop correction after each segment.
     pub closed_loop: bool,
+    /// Sleep for segment duration (wall-clock playback).
     pub realtime: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayLineResponse {
+    /// Final motor step counts per axis.
     pub final_steps: Vec<i64>,
+    /// FK pose from feedback steps, if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feedback_pose: Option<[f64; 3]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunStatusResponse {
+    /// Whether a run session is active.
     pub connected: bool,
+    /// Backend name when connected.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub backend: Option<String>,
+    /// E-stop latched.
     pub estopped: bool,
+    /// Latest step positions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<Vec<i64>>,
+    /// Latest feedback pose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pose: Option<[f64; 3]>,
 }

@@ -1,7 +1,7 @@
 # Spyder — Parametric Cable-Camera Inverse Kinematics Suite
 
 **Date:** 2026-07-10  
-**Status:** Draft for review  
+**Status:** Implemented (Phase 1 on `main`; see [docs/architecture.md](../../architecture.md))  
 **Repo:** `spyder` (formerly TSI)  
 **License:** MIT (default unless changed before first public release)
 

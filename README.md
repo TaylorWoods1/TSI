@@ -2,12 +2,14 @@
 
 Parametric inverse kinematics for spider-cam / cable-driven camera robots.
 
-Supports **N ≥ 3 motors**, rectangular and polygonal presets, irregular anchors, point-mass and rigid-platform modes, ideal / pulley / sag cable models, tension distribution, winch→motor mapping, workspace sampling + 3D HTML viz, trajectory playback, and Python bindings.
+Supports **N ≥ 3 motors**, rectangular and polygonal presets, irregular anchors, point-mass and rigid-platform modes, ideal / pulley / sag cable models, tension distribution, winch→motor mapping, workspace sampling + 3D HTML viz, trajectory playback, a local **Design / Simulate / Run GUI**, and Python bindings.
 
 ## Quick start (Rust)
 
 ```bash
-cargo test
+cargo test --workspace
+mkdir -p artifacts
+
 cargo run -p spyder-gui   # API + UI at http://127.0.0.1:7700 (build web/ first)
 cargo run -p spyder-cli -- ik configs/rect_4.toml 0,0,2
 cargo run -p spyder-cli -- workspace configs/rect_4.toml artifacts/workspace_rect4
@@ -18,7 +20,10 @@ cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene_ani
 cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.json
 cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
   --backend mock --closed-loop --cal artifacts/cal.json
+
+# Generate axis-map template before use:
 cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
+
 cargo run -p spyder-cli -- field-cal \
   "5,3,8;-5,3,8;-5,-3,8;5,-3,8" 0,0,1.5 artifacts/venue.toml
 cargo run -p spyder-cli -- venue-from-cal artifacts/cal.json artifacts/venue_from_cal.toml
@@ -26,30 +31,20 @@ cargo run -p spyder-cli -- venue-from-cal artifacts/cal.json artifacts/venue_fro
 
 ## Python
 
+See [python/README.md](python/README.md).
+
 ```bash
 cd python
 python3 -m venv .venv && source .venv/bin/activate
-pip install maturin==1.4.0
+pip install maturin==1.4.0 pytest
 maturin develop --release
+pytest tests/ -q
 jupyter notebook ../notebooks/01_ik_workspace.ipynb
-```
-
-```python
-from spyder import Robot
-r = Robot.rect(10, 6, 8)
-print(r.ik(0.5, -0.2, 2.0))
-print(r.classify())                 # RRPM
-print(r.is_feasible(0, 0, 2))
-print(r.ik_tensions(0, 0, 2))
-r.set_model("pulley", pulley_radius=0.05)
-print(r.model(), r.ik(0, 0, 2)[0])
-print(r.jacobian(0, 0, 2))
-print(r.workspace_fraction(-2, 2, -2, 2, 0.5, 4, 6, 6, 5))
 ```
 
 ## Hardware
 
-See [docs/hardware.md](docs/hardware.md).
+See [docs/hardware.md](docs/hardware.md) and [docs/cli.md](docs/cli.md#playback).
 
 ```bash
 # Dry-run
@@ -59,15 +54,34 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 --backend mo
 cargo run -p spyder-stepper-sim -- 9002
 cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
   --backend stepper --device 127.0.0.1:9002
-
-# Real Arduino steppers / ODrive
-cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
-  --backend stepper --device /dev/ttyUSB0 --baud 115200
-cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 0.5,0,2 5 \
-  --backend odrive --device /dev/ttyACM0
 ```
 
 Firmware: `firmware/spyder_stepper/spyder_stepper.ino`
+
+## GUI
+
+See [docs/gui.md](docs/gui.md) and [web/README.md](web/README.md).
+
+```bash
+cd web && npm ci && npm run build
+cargo run -p spyder-gui
+# open http://127.0.0.1:7700
+
+# Dev: API + Vite hot reload
+cargo run -p spyder-gui          # terminal 1
+cd web && npm run dev            # terminal 2 → http://127.0.0.1:5173
+```
+
+**MVP note:** GUI Run tab supports **mock** backend only; use CLI for stepper/ODrive.
+
+## Testing
+
+```bash
+cargo test --workspace     # Rust (107+ tests)
+cargo test -p spyder-gui   # GUI API routes
+cd web && npm test         # Vitest
+cd python && pytest tests/ # Python bindings
+```
 
 ## Crates
 
@@ -84,27 +98,27 @@ Firmware: `firmware/spyder_stepper/spyder_stepper.ino`
 | `spyder-gui` | Local Design / Simulate / Run GUI (Axum + React) |
 | `python/` | PyO3 bindings |
 
-## GUI
-
-```bash
-cd web && npm ci && npm run build
-cargo run -p spyder-gui
-# open http://127.0.0.1:7700
-
-# optional: Vite dev server with API proxy
-cd web && npm run dev
-```
-
 ## Conventions
 
 - World frame: right-handed, **Z-up**, meters
 - Point-mass mode: cables meet at the dolly origin (classic Spidercam)
 - Platform mode: per-cable body-frame attachment offsets + orientation
+- Venue TOML schema: [docs/config-schema.md](docs/config-schema.md)
 
 ## Docs
 
-- Design: `docs/superpowers/specs/2026-07-10-spyder-ik-design.md`
-- Plan: `docs/superpowers/plans/2026-07-10-spyder-phase1.md`
+| Document | Description |
+|----------|-------------|
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/architecture.md](docs/architecture.md) | Crate graph and data flow |
+| [docs/gui.md](docs/gui.md) | GUI setup, API, testing |
+| [docs/cli.md](docs/cli.md) | CLI command reference |
+| [docs/hardware.md](docs/hardware.md) | Motors, protocol, calibration |
+| [docs/config-schema.md](docs/config-schema.md) | Venue TOML fields |
+| [web/README.md](web/README.md) | Frontend (Vite/React) |
+| [python/README.md](python/README.md) | Python bindings |
+
+Planning archive: `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
 ## License
 

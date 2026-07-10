@@ -19,7 +19,7 @@ pub trait Transport: Send {
 pub struct MockTransport {
     /// Bytes written (as UTF-8 lossy strings per write).
     pub writes: Vec<String>,
-    /// FIFO of replies returned by [`read_line`].
+    /// FIFO of replies returned by [`Transport::read_line`].
     pub replies: Vec<String>,
 }
 

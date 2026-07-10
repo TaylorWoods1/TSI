@@ -3,8 +3,9 @@
  *
  * Protocol (newline-terminated):
  *   M <n> <steps0> <delay0_us> ... <stepsN-1> <delayN-1_us>
- *   H                          — zero host-side bookkeeping ack
+ *   H                          — hardware home / zero positions
  *   P                          — report positions: P s0 s1 ...
+ *   E                          — e-stop / halt
  *
  * Reply: OK\n or ERR <msg>\n
  *

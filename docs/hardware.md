@@ -108,8 +108,11 @@ cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene_ani
 
 ## Multi-board axis map
 
+Generate the example map file first (it is not committed by default):
+
 ```bash
 cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
+```
 
 # Dry-run fan-out across mapped devices (mock boards)
 cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
@@ -145,4 +148,4 @@ curl -s -X POST localhost:7700/workspace \
   -d '{"min":[-2,-2,0.5],"max":[2,2,4],"nx":5,"ny":5,"nz":4,"mg":9.81,"f_min":0.5,"f_max":500}'
 ```
 
-See `docs/superpowers/specs/2026-07-10-spyder-gui-design.md` for the full route table.
+See [docs/gui.md](gui.md) for the full route table and GUI MVP limits.

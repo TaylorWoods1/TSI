@@ -1,4 +1,7 @@
-//! Motor backends and trajectory playback for spyder.
+//! Motor backends and trajectory playback for Spyder.
+//!
+//! Wraps `spyder-actuation` with hardware I/O: mock, TCP stepper, and ODrive
+//! backends, plus calibration, axis maps, closed-loop feedback, and safety limits.
 
 #![deny(missing_docs)]
 

@@ -1,4 +1,10 @@
-//! PyO3 bindings for spyder.
+//! Python bindings for Spyder cable-robot kinematics.
+//!
+//! Exposes [`PyRobot`] as `spyder.Robot` — rectangular/polygon presets, IK/FK,
+//! Jacobian, workspace sampling, and cable model selection.
+//!
+//! Build with maturin: `cd python && maturin develop --release`
+//! Tests: `pytest tests/`
 
 use nalgebra::DVector;
 use pyo3::exceptions::PyValueError;

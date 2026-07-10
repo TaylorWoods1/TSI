@@ -10,7 +10,10 @@ use serde::Serialize;
 use spyder_core::{Pose, Robot, Vec3};
 
 pub use export::{write_csv, write_html, write_json};
-pub use scene::{write_scene_at, write_scene_html, SceneSnapshot};
+pub use scene::{
+    write_scene_animation_html, write_scene_at, write_scene_html, write_scene_line, SceneAnimation,
+    SceneSnapshot,
+};
 
 /// Axis-aligned sampling box in world coordinates.
 #[derive(Clone, Debug)]

@@ -5,6 +5,7 @@
 mod axis_map;
 mod calibration;
 mod feedback;
+mod multi_board;
 mod odrive;
 mod safety;
 mod stepper;
@@ -18,6 +19,7 @@ use thiserror::Error;
 pub use axis_map::{AxisEndpoint, AxisMap};
 pub use calibration::{apply_anchor_override, Calibration};
 pub use feedback::{length_error, lengths_from_steps, pose_from_steps, uniform_axes};
+pub use multi_board::MultiBoardBackend;
 pub use odrive::{ODriveAxis, ODriveBackend};
 pub use safety::{SafetyError, SafetyLimits};
 pub use stepper::StepperBackend;
@@ -174,6 +176,8 @@ pub struct Player<'a, B: MotorBackend> {
     pub safety: SafetyLimits,
     /// If true, after each move read feedback and apply one corrective step.
     pub closed_loop: bool,
+    /// If true, sleep for each segment duration (wall-clock realtime playback).
+    pub realtime: bool,
 }
 
 impl<'a, B: MotorBackend> Player<'a, B> {
@@ -199,12 +203,19 @@ impl<'a, B: MotorBackend> Player<'a, B> {
             pose_seed: home,
             safety: SafetyLimits::default(),
             closed_loop: false,
+            realtime: false,
         })
     }
 
     /// Enable closed-loop correction.
     pub fn with_closed_loop(mut self, on: bool) -> Self {
         self.closed_loop = on;
+        self
+    }
+
+    /// Enable wall-clock sleeps matching segment durations.
+    pub fn with_realtime(mut self, on: bool) -> Self {
+        self.realtime = on;
         self
     }
 
@@ -303,6 +314,9 @@ impl<'a, B: MotorBackend> Player<'a, B> {
             if let Ok(p) = self.feedback_pose() {
                 self.pose_seed = p;
             }
+        }
+        if self.realtime && duration_s > 0.0 {
+            std::thread::sleep(std::time::Duration::from_secs_f64(duration_s));
         }
         Ok(cmds)
     }

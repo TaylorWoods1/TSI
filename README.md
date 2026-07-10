@@ -12,9 +12,14 @@ cargo run -p spyder-cli -- ik configs/rect_4.toml 0,0,2
 cargo run -p spyder-cli -- workspace configs/rect_4.toml artifacts/workspace_rect4
 # open artifacts/workspace_rect4.html
 cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene.html
+cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene_anim.html \
+  --to 0.5,0,1.5 --segments 12 --workspace
 cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.json
 cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
   --backend mock --closed-loop --cal artifacts/cal.json
+cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
+  --backend mock --axis-map configs/axis_map_dual_odrive.json
 ```
 
 ## Python

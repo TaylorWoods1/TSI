@@ -95,7 +95,26 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 20 \
 ## 3D scene
 
 ```bash
+# Static pose
 cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene.html
+
+# Animated trajectory with play/scrub + optional workspace cloud
+cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene_anim.html \
+  --to 0.5,0,1.5 --segments 12 --workspace
 ```
 
-Plotly HTML with anchors, cables, and dolly at the given pose.
+## Multi-board axis map
+
+```bash
+cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
+
+# Dry-run fan-out across mapped devices (mock boards)
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
+  --backend mock --axis-map configs/axis_map_dual_odrive.json
+
+# Live: open one stepper transport per device in the map
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 8 \
+  --backend multiboard --axis-map configs/axis_map_dual_odrive.json --realtime
+```
+
+`Player::with_realtime(true)` sleeps per segment for wall-clock playback.

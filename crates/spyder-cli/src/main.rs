@@ -16,10 +16,12 @@ fn usage() -> ! {
   spyder fk <config.toml> <l1,l2,...> [seed]
   spyder workspace <config.toml> [out_prefix]
   spyder scene <config.toml> <x,y,z> [out.html]
+           [--to x,y,z] [--segments N] [--workspace]
   spyder calibrate <config.toml> <x,y,z> [out.json]
   spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]
-           [--backend mock|stepper|odrive] [--device PATH|host:port] [--baud N]
-           [--closed-loop] [--cal cal.json] [--axis-map map.json]
+           [--backend mock|stepper|odrive|multiboard]
+           [--device PATH|host:port] [--baud N]
+           [--closed-loop] [--realtime] [--cal cal.json] [--axis-map map.json]
   spyder axis-map-example [out.json]"
     );
     process::exit(2);
@@ -242,20 +244,50 @@ fn main() {
             println!("wrote {out_prefix}.{{csv,json,html}}");
         }
         "scene" => {
+            let to = take_flag(&mut args, "--to");
+            let segments: usize = take_flag(&mut args, "--segments")
+                .unwrap_or_else(|| "12".into())
+                .parse()
+                .expect("segments");
+            let with_ws = args.iter().any(|a| a == "--workspace");
+            args.retain(|a| a != "--workspace");
             if args.len() < 2 {
                 usage();
             }
             let cfg_path = args.remove(0);
             let xyz = parse_xyz(&args.remove(0));
             let out = if args.is_empty() {
-                "artifacts/scene.html".into()
+                if to.is_some() {
+                    "artifacts/scene_anim.html".into()
+                } else {
+                    "artifacts/scene.html".into()
+                }
             } else {
                 args.remove(0)
             };
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
-            spyder_sim::write_scene_at(&robot, xyz, PathBuf::from(&out).as_path(), "spyder scene")
-                .expect("scene");
+            let ws = if with_ws {
+                Some(default_workspace(&robot))
+            } else {
+                None
+            };
+            if let Some(end) = to {
+                let end = parse_xyz(&end);
+                spyder_sim::write_scene_line(
+                    &robot,
+                    xyz,
+                    end,
+                    segments,
+                    PathBuf::from(&out).as_path(),
+                    "spyder scene animation",
+                    ws.as_ref(),
+                )
+                .expect("scene anim");
+            } else {
+                spyder_sim::write_scene_at(&robot, xyz, PathBuf::from(&out).as_path(), "spyder scene")
+                    .expect("scene");
+            }
             println!("wrote {out}");
         }
         "calibrate" => {
@@ -300,8 +332,8 @@ fn main() {
         }
         "play" => {
             use spyder_runtime::{
-                Axis, AxisMap, Calibration, MockBackend, MotorBackend, ODriveAxis, ODriveBackend,
-                Player, SafetyLimits, StepperBackend,
+                Axis, AxisMap, Calibration, MockBackend, MotorBackend, MultiBoardBackend,
+                ODriveAxis, ODriveBackend, Player, SafetyLimits, StepperBackend,
             };
             let backend_name = take_flag(&mut args, "--backend").unwrap_or_else(|| "mock".into());
             let device = take_flag(&mut args, "--device");
@@ -312,7 +344,8 @@ fn main() {
             let cal_path = take_flag(&mut args, "--cal");
             let axis_map_path = take_flag(&mut args, "--axis-map");
             let closed_loop = args.iter().any(|a| a == "--closed-loop");
-            args.retain(|a| a != "--closed-loop");
+            let realtime = args.iter().any(|a| a == "--realtime");
+            args.retain(|a| a != "--closed-loop" && a != "--realtime");
             if args.len() < 3 {
                 usage();
             }
@@ -332,14 +365,6 @@ fn main() {
                     spyder_runtime::apply_anchor_override(&mut robot, anchors).expect("anchors");
                 }
             }
-            if let Some(path) = &axis_map_path {
-                let map = AxisMap::load_json(PathBuf::from(path).as_path()).expect("axis-map");
-                println!(
-                    "axis-map cables={} devices={:?}",
-                    map.cables.len(),
-                    map.devices()
-                );
-            }
             let n = robot.anchors.len();
             let axes: Vec<_> = (0..n)
                 .map(|_| Axis::new(0.05, 200.0, 1.0).expect("axis"))
@@ -351,23 +376,90 @@ fn main() {
                 ..SafetyLimits::default()
             };
 
+            fn finish_play<'a, B: MotorBackend>(
+                mut player: Player<'a, B>,
+                cal_path: &Option<String>,
+                start: Vec3,
+                end: Vec3,
+                segments: usize,
+            ) -> Player<'a, B> {
+                if let Some(path) = cal_path {
+                    let cal = Calibration::load_json(PathBuf::from(path).as_path()).expect("cal");
+                    player.apply_calibration(&cal).expect("apply cal");
+                    player.home().expect("home");
+                }
+                player.move_line(start, end, segments, 2.0).expect("play");
+                player
+            }
+
             match backend_name.as_str() {
                 "mock" => {
-                    let mut player = Player::new(&robot, axes, MockBackend::new(n), start)
+                    if let Some(path) = &axis_map_path {
+                        let map = AxisMap::load_json(PathBuf::from(path).as_path()).expect("axis-map");
+                        println!(
+                            "axis-map cables={} devices={:?} (mock multi-board)",
+                            map.cables.len(),
+                            map.devices()
+                        );
+                        let backend = MultiBoardBackend::mock_from_map(map).expect("multiboard");
+                        let player = Player::new(&robot, axes, backend, start)
+                            .expect("player")
+                            .with_safety(safety)
+                            .with_closed_loop(closed_loop)
+                            .with_realtime(realtime);
+                        let player = finish_play(player, &cal_path, start, end, segments);
+                        println!(
+                            "play backend=multiboard-mock closed_loop={closed_loop} realtime={realtime} boards={} final_steps={:?}",
+                            player.backend.board_count(),
+                            player.backend.positions()
+                        );
+                    } else {
+                        let player = Player::new(&robot, axes, MockBackend::new(n), start)
+                            .expect("player")
+                            .with_safety(safety)
+                            .with_closed_loop(closed_loop)
+                            .with_realtime(realtime);
+                        let mut player = finish_play(player, &cal_path, start, end, segments);
+                        let fb = player.feedback_pose().unwrap_or(end);
+                        println!(
+                            "play backend=mock closed_loop={closed_loop} realtime={realtime} segments={segments} final_steps={:?} feedback_pose=[{:.3},{:.3},{:.3}]",
+                            player.backend.steps, fb.x, fb.y, fb.z
+                        );
+                    }
+                }
+                "multiboard" => {
+                    let path = axis_map_path.expect("--axis-map required for multiboard");
+                    let map = AxisMap::load_json(PathBuf::from(path).as_path()).expect("axis-map");
+                    let devices = map.devices();
+                    println!(
+                        "axis-map cables={} devices={:?}",
+                        map.cables.len(),
+                        devices
+                    );
+                    let mut boards: Vec<Box<dyn MotorBackend>> = Vec::new();
+                    for device in &devices {
+                        let baud = map
+                            .cables
+                            .iter()
+                            .find(|c| &c.device == device)
+                            .map(|c| c.baud)
+                            .unwrap_or(baud);
+                        let n_local = map.cables.iter().filter(|c| &c.device == device).count();
+                        let mut transport = open_transport(device, baud).expect("transport");
+                        let _ = transport.read_line();
+                        boards.push(Box::new(StepperBackend::new(transport, n_local)));
+                    }
+                    let backend = MultiBoardBackend::new(map, boards).expect("multiboard");
+                    let player = Player::new(&robot, axes, backend, start)
                         .expect("player")
                         .with_safety(safety)
-                        .with_closed_loop(closed_loop);
-                    if let Some(path) = &cal_path {
-                        let cal =
-                            Calibration::load_json(PathBuf::from(path).as_path()).expect("cal");
-                        player.apply_calibration(&cal).expect("apply cal");
-                        player.home().expect("home");
-                    }
-                    player.move_line(start, end, segments, 2.0).expect("play");
-                    let fb = player.feedback_pose().unwrap_or(end);
+                        .with_closed_loop(closed_loop)
+                        .with_realtime(realtime);
+                    let player = finish_play(player, &cal_path, start, end, segments);
                     println!(
-                        "play backend=mock closed_loop={closed_loop} segments={segments} final_steps={:?} feedback_pose=[{:.3},{:.3},{:.3}]",
-                        player.backend.steps, fb.x, fb.y, fb.z
+                        "play backend=multiboard closed_loop={closed_loop} realtime={realtime} boards={} final_steps={:?}",
+                        player.backend.board_count(),
+                        player.backend.positions()
                     );
                 }
                 "stepper" => {
@@ -375,19 +467,14 @@ fn main() {
                     let mut transport = open_transport(&device, baud).expect("transport");
                     let _ = transport.read_line();
                     let backend = StepperBackend::new(transport, n);
-                    let mut player = Player::new(&robot, axes, backend, start)
+                    let player = Player::new(&robot, axes, backend, start)
                         .expect("player")
                         .with_safety(safety)
-                        .with_closed_loop(closed_loop);
-                    if let Some(path) = &cal_path {
-                        let cal =
-                            Calibration::load_json(PathBuf::from(path).as_path()).expect("cal");
-                        player.apply_calibration(&cal).expect("apply cal");
-                        player.home().expect("home");
-                    }
-                    player.move_line(start, end, segments, 2.0).expect("play");
+                        .with_closed_loop(closed_loop)
+                        .with_realtime(realtime);
+                    let player = finish_play(player, &cal_path, start, end, segments);
                     println!(
-                        "play backend=stepper device={device} closed_loop={closed_loop} final_steps={:?}",
+                        "play backend=stepper device={device} closed_loop={closed_loop} realtime={realtime} final_steps={:?}",
                         player.backend.positions()
                     );
                 }
@@ -399,19 +486,14 @@ fn main() {
                         .collect();
                     let mut backend = ODriveBackend::new(transport, oaxes);
                     backend.enter_closed_loop().expect("closed loop");
-                    let mut player = Player::new(&robot, axes, backend, start)
+                    let player = Player::new(&robot, axes, backend, start)
                         .expect("player")
                         .with_safety(safety)
-                        .with_closed_loop(closed_loop);
-                    if let Some(path) = &cal_path {
-                        let cal =
-                            Calibration::load_json(PathBuf::from(path).as_path()).expect("cal");
-                        player.apply_calibration(&cal).expect("apply cal");
-                        player.home().expect("home");
-                    }
-                    player.move_line(start, end, segments, 2.0).expect("play");
+                        .with_closed_loop(closed_loop)
+                        .with_realtime(realtime);
+                    let player = finish_play(player, &cal_path, start, end, segments);
                     println!(
-                        "play backend=odrive device={device} closed_loop={closed_loop} final_steps={:?}",
+                        "play backend=odrive device={device} closed_loop={closed_loop} realtime={realtime} final_steps={:?}",
                         player.backend.positions()
                     );
                 }

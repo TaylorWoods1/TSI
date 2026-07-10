@@ -418,6 +418,8 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "nalgebra",
+ "serde",
+ "serde_json",
  "serialport",
  "spyder-actuation",
  "spyder-core",

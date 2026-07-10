@@ -91,6 +91,11 @@ void loop() {
     Serial.println("OK");
     return;
   }
+  if (line == "E") {
+    // E-stop: stop issuing pulses (cooperative); host should cease commands.
+    Serial.println("OK estop");
+    return;
+  }
   if (line == "P") {
     Serial.print("P");
     for (int i = 0; i < NUM_AXES; i++) {

@@ -11,7 +11,10 @@ cargo test
 cargo run -p spyder-cli -- ik configs/rect_4.toml 0,0,2
 cargo run -p spyder-cli -- workspace configs/rect_4.toml artifacts/workspace_rect4
 # open artifacts/workspace_rect4.html
-cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8
+cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene.html
+cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.json
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 1,0.5,2 8 \
+  --backend mock --closed-loop --cal artifacts/cal.json
 ```
 
 ## Python
@@ -61,10 +64,10 @@ Firmware: `firmware/spyder_stepper/spyder_stepper.ino`
 | `spyder-cables` | `Ideal`, `Pulley`, `Sag` (Irvine) |
 | `spyder-statics` | Structure matrix + closed-form tensions |
 | `spyder-actuation` | Winch / motor step mapping |
-| `spyder-sim` | Workspace sampling, CSV/JSON/HTML export, trajectories |
-| `spyder-runtime` | `MotorBackend`, mock / stepper / ODrive, `Player` |
+| `spyder-sim` | Workspace sampling, CSV/JSON/HTML, 3D scene, trajectories |
+| `spyder-runtime` | Backends, `Player`, safety, calibration, axis map, feedback |
 | `spyder-stepper-sim` | TCP firmware simulator |
-| `spyder-cli` | `ik` / `fk` / `workspace` / `play` |
+| `spyder-cli` | `ik` / `fk` / `workspace` / `scene` / `calibrate` / `play` |
 | `python/` | PyO3 bindings |
 
 ## Conventions

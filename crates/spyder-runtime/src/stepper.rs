@@ -98,6 +98,37 @@ impl MotorBackend for StepperBackend {
     fn positions(&self) -> &[i64] {
         &self.steps
     }
+
+    fn read_feedback_steps(&mut self) -> Result<Vec<i64>> {
+        self.send_line("P")?;
+        let resp = self.transport.read_line()?;
+        // P s0 s1 ...
+        let parts: Vec<_> = resp.split_whitespace().collect();
+        if parts.first().copied() != Some("P") || parts.len() < 1 + self.steps.len() {
+            // Fall back to bookkeeping if firmware doesn't support P yet.
+            return Ok(self.steps.clone());
+        }
+        let mut out = Vec::with_capacity(self.steps.len());
+        for i in 0..self.steps.len() {
+            let v: i64 = parts[1 + i]
+                .parse()
+                .map_err(|e| RuntimeError::Backend(format!("parse P: {e}")))?;
+            out.push(v);
+            self.steps[i] = v;
+        }
+        Ok(out)
+    }
+
+    fn estop(&mut self) -> Result<()> {
+        // Best-effort: zero motion command; firmware may ignore.
+        self.send_line("E")?;
+        let _ = self.transport.read_line();
+        Ok(())
+    }
+
+    fn home_hardware(&mut self) -> Result<()> {
+        self.home()
+    }
 }
 
 #[cfg(test)]

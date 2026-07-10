@@ -18,9 +18,17 @@ Host → firmware (newline-terminated):
 M <n> <steps0> <delay0_us> <steps1> <delay1_us> ...
 H
 P
+E
 ```
 
-Firmware → host: `OK` or `ERR ...`
+| Cmd | Meaning |
+|-----|---------|
+| `M` | Multi-axis step burst |
+| `H` | Hardware home / zero positions |
+| `P` | Report current step positions |
+| `E` | E-stop acknowledge / halt |
+
+Firmware → host: `OK`, `OK <steps…>` (for `P`), or `ERR ...`
 
 Flash `firmware/spyder_stepper/spyder_stepper.ino` to an Arduino/ESP32. Default pins: STEP 2–5, DIR 6–9, 115200 baud.
 
@@ -53,10 +61,41 @@ cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,2 0.5,0,2 5 \
   --backend odrive --device /dev/ttyACM0 --baud 115200
 ```
 
-> Multi-board / >2 axes: map cables to axis 0/1 per board and use one transport per ODrive (extend CLI as needed).
+### Multi-board axis map
+
+Generate an example cable→device/axis map (two ODrives × 2 axes):
+
+```bash
+cargo run -p spyder-cli -- axis-map-example configs/axis_map_dual_odrive.json
+```
+
+Pass `--axis-map path.json` to `play` to print the mapping (Player still uses one transport today; use the map when wiring multi-board setups).
+
+## Calibration + home
+
+Capture home pose lengths and measured anchors:
+
+```bash
+cargo run -p spyder-cli -- calibrate configs/rect_4.toml 0,0,1.5 artifacts/cal.json
+cargo run -p spyder-cli -- play configs/rect_4.toml 0,0,1.5 0.2,0,1.5 20 \
+  --backend mock --cal artifacts/cal.json --closed-loop
+```
+
+`Player` applies calibration, homes software zeros, and can correct pose from encoder/step feedback (`P` / ODrive `f`) when `--closed-loop` is set.
 
 ## Safety
+
+`SafetyLimits` in the Player enforce soft workspace bounds, max speed, cable length range, and step-burst size. E-stop is available via `MotorBackend::estop` (firmware `E`).
 
 - Always dry-run with `--backend mock` first  
 - Verify cable directions and winch radius before enabling drivers  
 - Keep tension limits conservative; watch for slack / over-tension on first moves  
+- Use `--closed-loop` only after feedback reads look sane  
+
+## 3D scene
+
+```bash
+cargo run -p spyder-cli -- scene configs/rect_4.toml 0,0,1.5 artifacts/scene.html
+```
+
+Plotly HTML with anchors, cables, and dolly at the given pose.

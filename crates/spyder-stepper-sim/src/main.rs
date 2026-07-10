@@ -30,6 +30,10 @@ fn handle(mut stream: TcpStream) {
             let _ = writeln!(stream, "OK");
             continue;
         }
+        if cmd == "E" {
+            let _ = writeln!(stream, "OK estop");
+            continue;
+        }
         if cmd == "P" {
             let mut out = String::from("P");
             for p in &positions {

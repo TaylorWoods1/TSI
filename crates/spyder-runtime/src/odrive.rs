@@ -113,6 +113,35 @@ impl MotorBackend for ODriveBackend {
     fn positions(&self) -> &[i64] {
         &self.steps
     }
+
+    fn read_feedback_steps(&mut self) -> Result<Vec<i64>> {
+        let mut out = Vec::with_capacity(self.axes.len());
+        for i in 0..self.axes.len() {
+            let axis = self.axes[i].axis;
+            self.send_line(&format!("f {axis}"))?;
+            let resp = self.transport.read_line().unwrap_or_default();
+            // response: "pos vel"
+            let pos_turns: f64 = resp
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(self.turns[i]);
+            self.turns[i] = pos_turns;
+            let steps = (pos_turns * self.axes[i].steps_per_rev).round() as i64;
+            self.steps[i] = steps;
+            out.push(steps);
+        }
+        Ok(out)
+    }
+
+    fn estop(&mut self) -> Result<()> {
+        self.idle()
+    }
+
+    fn home_hardware(&mut self) -> Result<()> {
+        self.zero_bookkeeping();
+        Ok(())
+    }
 }
 
 #[cfg(test)]

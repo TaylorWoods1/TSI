@@ -1,0 +1,19 @@
+[package]
+name = "spyder"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Python bindings for the spyder cable-camera IK suite"
+
+[lib]
+name = "spyder"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+spyder-core = { path = "../crates/spyder-core" }
+spyder-sim = { path = "../crates/spyder-sim" }
+nalgebra = "0.33"
+
+# Standalone from the root Cargo workspace (built via maturin).
+[workspace]

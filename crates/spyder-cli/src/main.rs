@@ -12,7 +12,7 @@ use spyder_core::{Anchor, Pose, Preset, Robot, Vec3};
 
 fn usage() -> ! {
     eprintln!(
-        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]"
+        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]\n  spyder workspace <config.toml>"
     );
     process::exit(2);
 }
@@ -152,6 +152,26 @@ fn main() {
             println!(
                 "position = [{:.6}, {:.6}, {:.6}] method={:?} residual={:.3e}",
                 fk.position.x, fk.position.y, fk.position.z, fk.method, fk.residual
+            );
+        }
+        "workspace" => {
+            let cfg_path = args.next().unwrap_or_else(|| usage());
+            let text = fs::read_to_string(&cfg_path).expect("read config");
+            let robot = robot_from_toml(&text);
+            // Default sample box from home-ish region; optional overrides later.
+            use spyder_sim::{sample_wrench_feasible, SampleBox};
+            let box_ = SampleBox {
+                min: spyder_core::Vec3::new(-2.0, -2.0, 0.5),
+                max: spyder_core::Vec3::new(2.0, 2.0, 4.0),
+                nx: 7,
+                ny: 7,
+                nz: 5,
+            };
+            let w = nalgebra::DVector::from_vec(vec![0.0, 0.0, -9.81]);
+            let report = sample_wrench_feasible(&robot, &box_, w, 0.5, 500.0);
+            println!(
+                "workspace feasible={}/{} fraction={:.3}",
+                report.feasible, report.total, report.fraction
             );
         }
         _ => usage(),

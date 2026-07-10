@@ -23,5 +23,5 @@ pub use ik::{
 };
 pub use pose::Pose;
 pub use preset::{rect, regular_polygon, triangle};
-pub use robot::{Preset, Robot};
+pub use robot::{CableModelKind, Preset, Robot};
 pub use types::{Mat3, UnitQuat, Vec3};

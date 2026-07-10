@@ -6,7 +6,9 @@ members = [
     "crates/spyder-statics",
     "crates/spyder-actuation",
     "crates/spyder-cli",
+    "crates/spyder-sim",
 ]
+exclude = ["python"]
 
 [workspace.package]
 version = "0.1.0"

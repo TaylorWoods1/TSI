@@ -1,5 +1,7 @@
 //! High-level robot facade combining anchors, attachments, and solves.
 
+use spyder_cables::{CableContext, CableModel, Pulley, Sag};
+
 use crate::anchor::{Anchor, PlatformAttachment};
 use crate::error::{Result, SpyderError};
 use crate::fk::{fk_point_mass_numeric, FkResult};
@@ -32,6 +34,26 @@ pub enum Preset {
     },
 }
 
+/// Which cable length model the robot uses for IK.
+#[derive(Clone, Debug)]
+pub enum CableModelKind {
+    /// Straight Euclidean cables.
+    Ideal,
+    /// Swivel-pulley compensation (uses each anchor's axis/radius, or defaults).
+    Pulley {
+        /// Default radius when an anchor has `pulley_radius == 0`.
+        default_radius: f64,
+    },
+    /// Irvine sag (requires tension via wrench in [`crate::ik::IkOptions`]).
+    Sag(Sag),
+}
+
+impl Default for CableModelKind {
+    fn default() -> Self {
+        Self::Ideal
+    }
+}
+
 /// Parametric cable robot configuration and solvers.
 #[derive(Clone, Debug)]
 pub struct Robot {
@@ -41,6 +63,8 @@ pub struct Robot {
     pub attachments: Vec<PlatformAttachment>,
     /// When true, attachments are treated as coincident at the origin.
     pub point_mass: bool,
+    /// Active cable model.
+    pub cable_model: CableModelKind,
 }
 
 impl Robot {
@@ -58,9 +82,6 @@ impl Robot {
     }
 
     /// Build from explicit anchors.
-    ///
-    /// If `attachments` is `None`, coincident origins are used.
-    /// `point_mass` forces body points to origin during IK regardless of attachments.
     pub fn from_anchors(
         anchors: Vec<Anchor>,
         attachments: Option<Vec<PlatformAttachment>>,
@@ -70,9 +91,8 @@ impl Robot {
             return Err(SpyderError::Config("need at least 3 anchors".into()));
         }
         let n = anchors.len();
-        let attachments = attachments.unwrap_or_else(|| {
-            (0..n).map(|_| PlatformAttachment::origin()).collect()
-        });
+        let attachments = attachments
+            .unwrap_or_else(|| (0..n).map(|_| PlatformAttachment::origin()).collect());
         if attachments.len() != n {
             return Err(SpyderError::Config(
                 "attachments must match anchor count".into(),
@@ -82,7 +102,14 @@ impl Robot {
             anchors,
             attachments,
             point_mass,
+            cable_model: CableModelKind::Ideal,
         })
+    }
+
+    /// Set the cable model (builder-style).
+    pub fn with_cable_model(mut self, model: CableModelKind) -> Self {
+        self.cable_model = model;
+        self
     }
 
     fn effective_attachments(&self) -> Vec<PlatformAttachment> {
@@ -96,7 +123,7 @@ impl Robot {
         }
     }
 
-    /// Ideal-model inverse kinematics.
+    /// Inverse kinematics using the configured cable model.
     pub fn ik(&self, pose: &Pose) -> Result<IkResult> {
         self.ik_with_options(pose, &crate::ik::IkOptions::with_defaults())
     }
@@ -108,11 +135,110 @@ impl Robot {
         opts: &crate::ik::IkOptions,
     ) -> Result<IkResult> {
         let attachments = self.effective_attachments();
-        let res = ik_ideal(&self.anchors, &attachments, pose)?;
+        let res = match &self.cable_model {
+            CableModelKind::Ideal => ik_ideal(&self.anchors, &attachments, pose)?,
+            CableModelKind::Pulley { default_radius } => {
+                self.ik_pulley(pose, &attachments, *default_radius)?
+            }
+            CableModelKind::Sag(sag) => {
+                // sag path already embeds tensions; still allow motor mapping via apply
+                let sag_res = self.ik_sag(pose, &attachments, sag, opts)?;
+                let unstrained = sag_res.unstrained_lengths.clone();
+                let mut out = crate::ik::apply_ik_options(
+                    IkResult {
+                        tensions: None,
+                        motor_commands: None,
+                        ..sag_res
+                    },
+                    &self.anchors,
+                    &attachments,
+                    pose,
+                    self.point_mass,
+                    opts,
+                )?;
+                out.unstrained_lengths = unstrained;
+                return Ok(out);
+            }
+        };
         crate::ik::apply_ik_options(res, &self.anchors, &attachments, pose, self.point_mass, opts)
     }
 
-    /// Wrench feasibility at a pose (point-mass 3-force or platform 6-wrench).
+    fn ik_pulley(
+        &self,
+        pose: &Pose,
+        attachments: &[PlatformAttachment],
+        default_radius: f64,
+    ) -> Result<IkResult> {
+        let mut lengths = Vec::with_capacity(self.anchors.len());
+        let mut unstrained = Vec::with_capacity(self.anchors.len());
+        let ctx = CableContext::default();
+        for (anchor, att) in self.anchors.iter().zip(attachments.iter()) {
+            let b = pose.transform_point(&att.body_point);
+            let radius = if anchor.pulley_radius > 0.0 {
+                anchor.pulley_radius
+            } else {
+                default_radius
+            };
+            let axis = anchor.pulley_axis.unwrap_or_else(Vec3::z);
+            let model = Pulley::new(axis, radius).map_err(|e| SpyderError::Model(e.to_string()))?;
+            let len = model
+                .length(&anchor.exit, &b, &ctx)
+                .map_err(|e| SpyderError::Model(e.to_string()))?;
+            lengths.push(len.geometric);
+            unstrained.push(len.unstrained);
+        }
+        Ok(IkResult {
+            lengths,
+            unstrained_lengths: unstrained,
+            tensions: None,
+            motor_commands: None,
+        })
+    }
+
+    fn ik_sag(
+        &self,
+        pose: &Pose,
+        attachments: &[PlatformAttachment],
+        sag: &Sag,
+        opts: &crate::ik::IkOptions,
+    ) -> Result<IkResult> {
+        let ideal = ik_ideal(&self.anchors, attachments, pose)?;
+        let with_t = crate::ik::apply_ik_options(
+            ideal,
+            &self.anchors,
+            attachments,
+            pose,
+            self.point_mass,
+            opts,
+        )?;
+        let tensions = with_t.tensions.as_ref().ok_or_else(|| {
+            SpyderError::Config(
+                "sag model requires IkOptions.wrench to estimate per-cable tension".into(),
+            )
+        })?;
+
+        let mut lengths = Vec::with_capacity(self.anchors.len());
+        let mut unstrained = Vec::with_capacity(self.anchors.len());
+        for (i, (anchor, att)) in self.anchors.iter().zip(attachments.iter()).enumerate() {
+            let b = pose.transform_point(&att.body_point);
+            let ctx = CableContext {
+                tension: Some(tensions[i]),
+            };
+            let len = sag
+                .length(&anchor.exit, &b, &ctx)
+                .map_err(|e| SpyderError::Model(e.to_string()))?;
+            lengths.push(len.geometric);
+            unstrained.push(len.unstrained);
+        }
+        Ok(IkResult {
+            lengths,
+            unstrained_lengths: unstrained,
+            tensions: Some(tensions.clone()),
+            motor_commands: None,
+        })
+    }
+
+    /// Wrench feasibility at a pose.
     pub fn is_wrench_feasible(
         &self,
         pose: &Pose,
@@ -126,20 +252,18 @@ impl Robot {
             f_max,
             ..crate::ik::IkOptions::with_defaults()
         };
-        match self.ik_with_options(pose, &opts) {
+        let mut tmp = self.clone();
+        tmp.cable_model = CableModelKind::Ideal;
+        match tmp.ik_with_options(pose, &opts) {
             Ok(r) => Ok(r.tensions.is_some()),
             Err(SpyderError::InfeasibleWrench) => Ok(false),
             Err(e) => Err(e),
         }
     }
 
-    /// Forward kinematics with automatic analytic dispatch when possible.
+    /// Forward kinematics (ideal length measurements).
     pub fn fk(&self, lengths: &[f64], seed: Vec3) -> Result<FkResult> {
         if !self.point_mass {
-            // Platform FK: optimize translation only for now (orientation fixed identity seed)
-            // Full 6DOF FK lands with numeric extension; use point-mass numeric on transformed
-            // coincident approximation when attachments are tiny — for nonzero offsets, solve
-            // translation with fixed orientation = identity as Phase 1 subset.
             return self.fk_platform_translation(lengths, seed);
         }
         let exits: Vec<Vec3> = self.anchors.iter().map(|a| a.exit).collect();
@@ -155,7 +279,6 @@ impl Robot {
     }
 
     fn fk_platform_translation(&self, lengths: &[f64], seed: Vec3) -> Result<FkResult> {
-        // Gauss-Newton on translation with fixed identity orientation.
         let mut p = seed;
         let max_iters = 50;
         let mut residual = f64::INFINITY;
@@ -183,7 +306,6 @@ impl Robot {
                 }
                 let err = dist - lengths[i];
                 residual += err * err;
-                // ∂||(p+Rb)-a||/∂p = unit vector (same as point-mass when R fixed)
                 let u = diff / dist;
                 jtj += u * u.transpose();
                 jtr += u * err;
@@ -213,7 +335,9 @@ impl Robot {
 mod tests {
     use super::*;
     use crate::anchor::PlatformAttachment;
+    use crate::ik::IkOptions;
     use approx::assert_relative_eq;
+    use nalgebra::DVector;
 
     #[test]
     fn platform_mode_changes_lengths_vs_point_mass() {
@@ -233,14 +357,11 @@ mod tests {
         let pose = Pose::from_position(Vec3::new(0.0, 0.0, 1.0));
         let l_pm = pm.ik(&pose).unwrap();
         let l_plat = plat.ik(&pose).unwrap();
-        assert!(
-            l_pm
-                .lengths
-                .iter()
-                .zip(l_plat.lengths.iter())
-                .any(|(a, b)| (a - b).abs() > 1e-6),
-            "platform offsets should change lengths"
-        );
+        assert!(l_pm
+            .lengths
+            .iter()
+            .zip(l_plat.lengths.iter())
+            .any(|(a, b)| (a - b).abs() > 1e-6));
     }
 
     #[test]
@@ -257,5 +378,45 @@ mod tests {
         assert_relative_eq!(fk.position.x, pose.position.x, epsilon = 1e-5);
         assert_relative_eq!(fk.position.y, pose.position.y, epsilon = 1e-5);
         assert_relative_eq!(fk.position.z, pose.position.z, epsilon = 1e-5);
+    }
+
+    #[test]
+    fn pulley_model_increases_lengths() {
+        let ideal = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let pulley = ideal.clone().with_cable_model(CableModelKind::Pulley {
+            default_radius: 0.08,
+        });
+        let pose = Pose::from_position(Vec3::new(0.0, 0.0, 1.0));
+        let li = ideal.ik(&pose).unwrap();
+        let lp = pulley.ik(&pose).unwrap();
+        for (a, b) in li.lengths.iter().zip(lp.lengths.iter()) {
+            assert!(b > a, "pulley length {b} should exceed ideal {a}");
+        }
+    }
+
+    #[test]
+    fn sag_model_returns_unstrained_with_wrench() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 10.0,
+            depth: 10.0,
+            height: 8.0,
+        })
+        .unwrap()
+        .with_cable_model(CableModelKind::Sag(Sag::default()));
+        let pose = Pose::from_position(Vec3::new(0.0, 0.0, 2.0));
+        let opts = IkOptions {
+            wrench: Some(DVector::from_vec(vec![0.0, 0.0, -50.0])),
+            f_min: 1.0,
+            f_max: 1.0e4,
+            ..IkOptions::with_defaults()
+        };
+        let ik = robot.ik_with_options(&pose, &opts).unwrap();
+        assert!(ik.unstrained_lengths.iter().all(|u| u.is_some()));
+        assert!(ik.tensions.is_some());
     }
 }

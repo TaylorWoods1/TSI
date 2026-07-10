@@ -11,3 +11,5 @@ path = "src/main.rs"
 
 [dependencies]
 spyder-core = { path = "../spyder-core" }
+spyder-sim = { path = "../spyder-sim" }
+nalgebra = { workspace = true }

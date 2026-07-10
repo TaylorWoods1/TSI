@@ -212,7 +212,9 @@ dependencies = [
 name = "spyder-cli"
 version = "0.1.0"
 dependencies = [
+ "nalgebra",
  "spyder-core",
+ "spyder-sim",
 ]
 
 [[package]]
@@ -225,6 +227,17 @@ dependencies = [
  "spyder-actuation",
  "spyder-cables",
  "spyder-statics",
+ "thiserror",
+]
+
+[[package]]
+name = "spyder-sim"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "nalgebra",
+ "serde",
+ "spyder-core",
  "thiserror",
 ]
 

@@ -8,5 +8,11 @@ build/
 .next/
 *.log
 /target/
+**/target/
 **/*.rs.bk
 .superpowers/
+python/.venv/
+python/Cargo.lock
+*.whl
+__pycache__/
+.pytest_cache/

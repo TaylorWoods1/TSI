@@ -1,0 +1,17 @@
+[package]
+name = "spyder-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Motor backends and trajectory playback for spyder"
+
+[dependencies]
+spyder-core = { path = "../spyder-core" }
+spyder-actuation = { path = "../spyder-actuation" }
+spyder-sim = { path = "../spyder-sim" }
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+approx = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

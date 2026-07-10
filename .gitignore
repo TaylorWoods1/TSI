@@ -11,8 +11,8 @@ build/
 **/target/
 **/*.rs.bk
 .superpowers/
-python/.venv/
-python/Cargo.lock
-*.whl
-__pycache__/
-.pytest_cache/
+artifacts/
+!artifacts/.gitkeep
+*.html
+!docs/**/*.html
+

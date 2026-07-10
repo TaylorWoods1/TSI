@@ -2,9 +2,13 @@
 
 #![deny(missing_docs)]
 
+pub mod export;
+
 use nalgebra::DVector;
 use serde::Serialize;
 use spyder_core::{Pose, Robot, Vec3};
+
+pub use export::{write_csv, write_html, write_json};
 
 /// Axis-aligned sampling box in world coordinates.
 #[derive(Clone, Debug)]

@@ -3,16 +3,19 @@
 //! Usage:
 //!   spyder ik <config.toml> <x,y,z>
 //!   spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]
+//!   spyder workspace <config.toml> [out_prefix]
+//!   spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]
 
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process;
 
 use spyder_core::{Anchor, Pose, Preset, Robot, Vec3};
 
 fn usage() -> ! {
     eprintln!(
-        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]\n  spyder workspace <config.toml>"
+        "Usage:\n  spyder ik <config.toml> <x,y,z>\n  spyder fk <config.toml> <l1,l2,...> [seed_x,y,z]\n  spyder workspace <config.toml> [out_prefix]\n  spyder play <config.toml> <x0,y0,z0> <x1,y1,z1> [segments]"
     );
     process::exit(2);
 }
@@ -119,6 +122,19 @@ fn robot_from_toml(text: &str) -> Robot {
     r
 }
 
+fn default_workspace(robot: &Robot) -> spyder_sim::WorkspaceReport {
+    use spyder_sim::{sample_wrench_feasible, SampleBox};
+    let box_ = SampleBox {
+        min: Vec3::new(-2.0, -2.0, 0.5),
+        max: Vec3::new(2.0, 2.0, 4.0),
+        nx: 9,
+        ny: 9,
+        nz: 7,
+    };
+    let w = nalgebra::DVector::from_vec(vec![0.0, 0.0, -9.81]);
+    sample_wrench_feasible(robot, &box_, w, 0.5, 500.0)
+}
+
 fn main() {
     let mut args = env::args().skip(1);
     let cmd = args.next().unwrap_or_else(|| usage());
@@ -142,9 +158,7 @@ fn main() {
         "fk" => {
             let cfg_path = args.next().unwrap_or_else(|| usage());
             let lengths = args.next().unwrap_or_else(|| usage());
-            let seed = args
-                .next()
-                .unwrap_or_else(|| "0,0,1".to_string());
+            let seed = args.next().unwrap_or_else(|| "0,0,1".to_string());
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
             let lens = parse_list(&lengths);
@@ -156,22 +170,55 @@ fn main() {
         }
         "workspace" => {
             let cfg_path = args.next().unwrap_or_else(|| usage());
+            let out_prefix = args
+                .next()
+                .unwrap_or_else(|| "artifacts/workspace".to_string());
             let text = fs::read_to_string(&cfg_path).expect("read config");
             let robot = robot_from_toml(&text);
-            // Default sample box from home-ish region; optional overrides later.
-            use spyder_sim::{sample_wrench_feasible, SampleBox};
-            let box_ = SampleBox {
-                min: spyder_core::Vec3::new(-2.0, -2.0, 0.5),
-                max: spyder_core::Vec3::new(2.0, 2.0, 4.0),
-                nx: 7,
-                ny: 7,
-                nz: 5,
-            };
-            let w = nalgebra::DVector::from_vec(vec![0.0, 0.0, -9.81]);
-            let report = sample_wrench_feasible(&robot, &box_, w, 0.5, 500.0);
+            let report = default_workspace(&robot);
             println!(
                 "workspace feasible={}/{} fraction={:.3}",
                 report.feasible, report.total, report.fraction
+            );
+            let prefix = PathBuf::from(&out_prefix);
+            if let Some(parent) = prefix.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            spyder_sim::write_csv(&report, &PathBuf::from(format!("{out_prefix}.csv")))
+                .expect("csv");
+            spyder_sim::write_json(&report, &PathBuf::from(format!("{out_prefix}.json")))
+                .expect("json");
+            spyder_sim::write_html(
+                &report,
+                &PathBuf::from(format!("{out_prefix}.html")),
+                &format!("spyder workspace ({cfg_path})"),
+            )
+            .expect("html");
+            println!("wrote {out_prefix}.{{csv,json,html}}");
+        }
+        "play" => {
+            use spyder_runtime::{Axis, MockBackend, Player};
+            let cfg_path = args.next().unwrap_or_else(|| usage());
+            let start = parse_xyz(&args.next().unwrap_or_else(|| usage()));
+            let end = parse_xyz(&args.next().unwrap_or_else(|| usage()));
+            let segments: usize = args
+                .next()
+                .unwrap_or_else(|| "10".into())
+                .parse()
+                .expect("segments");
+            let text = fs::read_to_string(&cfg_path).expect("read config");
+            let robot = robot_from_toml(&text);
+            let n = robot.anchors.len();
+            let axes: Vec<_> = (0..n)
+                .map(|_| Axis::new(0.05, 200.0, 1.0).expect("axis"))
+                .collect();
+            let mut player =
+                Player::new(&robot, axes, MockBackend::new(n), start).expect("player");
+            player.move_line(start, end, segments, 2.0).expect("play");
+            println!(
+                "play done segments={segments} final_steps={:?} moves={}",
+                player.backend.steps,
+                player.backend.log.len()
             );
         }
         _ => usage(),

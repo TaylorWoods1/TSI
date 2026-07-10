@@ -31,6 +31,12 @@ jupyter notebook ../notebooks/01_ik_workspace.ipynb
 from spyder import Robot
 r = Robot.rect(10, 6, 8)
 print(r.ik(0.5, -0.2, 2.0))
+print(r.classify())                 # RRPM
+print(r.is_feasible(0, 0, 2))
+print(r.ik_tensions(0, 0, 2))
+r.set_model("pulley", pulley_radius=0.05)
+print(r.model(), r.ik(0, 0, 2)[0])
+print(r.jacobian(0, 0, 2))
 print(r.workspace_fraction(-2, 2, -2, 2, 0.5, 4, 6, 6, 5))
 ```
 

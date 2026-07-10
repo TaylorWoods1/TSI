@@ -3,7 +3,8 @@
 use nalgebra::DVector;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use spyder_core::{Pose, Preset, Robot, Vec3};
+use spyder_cables::Sag;
+use spyder_core::{CableModelKind, Pose, Preset, Robot, Vec3};
 use spyder_sim::{line_waypoints, sample_wrench_feasible, SampleBox};
 
 fn to_py<E: std::fmt::Display>(e: E) -> PyErr {
@@ -35,8 +36,46 @@ impl PyRobot {
     #[staticmethod]
     #[pyo3(signature = (n, radius, height))]
     fn polygon(n: usize, radius: f64, height: f64) -> PyResult<Self> {
-        let inner = Robot::from_preset(Preset::RegularPolygon { n, radius, height }).map_err(to_py)?;
+        let inner =
+            Robot::from_preset(Preset::RegularPolygon { n, radius, height }).map_err(to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Select cable model: `"ideal"`, `"pulley"`, or `"sag"`.
+    #[pyo3(signature = (model, pulley_radius=0.05, mu=0.05, ea=1.0e5))]
+    fn set_model(
+        &mut self,
+        model: &str,
+        pulley_radius: f64,
+        mu: f64,
+        ea: f64,
+    ) -> PyResult<()> {
+        self.inner.cable_model = match model.to_ascii_lowercase().as_str() {
+            "ideal" => CableModelKind::Ideal,
+            "pulley" => CableModelKind::Pulley {
+                default_radius: pulley_radius,
+            },
+            "sag" => CableModelKind::Sag(Sag {
+                mu,
+                ea,
+                g: 9.81,
+            }),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown model {other:?}; expected ideal|pulley|sag"
+                )))
+            }
+        };
+        Ok(())
+    }
+
+    /// Current cable model name.
+    fn model(&self) -> String {
+        match &self.inner.cable_model {
+            CableModelKind::Ideal => "ideal".into(),
+            CableModelKind::Pulley { .. } => "pulley".into(),
+            CableModelKind::Sag(_) => "sag".into(),
+        }
     }
 
     /// Inverse kinematics for a translation-only pose. Returns cable lengths (meters).
@@ -44,6 +83,79 @@ impl PyRobot {
         let pose = Pose::from_position(Vec3::new(x, y, z));
         let ik = self.inner.ik(&pose).map_err(to_py)?;
         Ok(ik.lengths)
+    }
+
+    /// IK with gravity wrench; returns (lengths, tensions).
+    #[pyo3(signature = (x, y, z, mg=9.81, f_min=0.5, f_max=500.0))]
+    fn ik_with_wrench(
+        &self,
+        x: f64,
+        y: f64,
+        z: f64,
+        mg: f64,
+        f_min: f64,
+        f_max: f64,
+    ) -> PyResult<(Vec<f64>, Vec<f64>)> {
+        let pose = Pose::from_position(Vec3::new(x, y, z));
+        let opts = spyder_core::IkOptions {
+            wrench: Some(DVector::from_vec(vec![0.0, 0.0, -mg])),
+            f_min,
+            f_max,
+            ..spyder_core::IkOptions::with_defaults()
+        };
+        let ik = self.inner.ik_with_options(&pose, &opts).map_err(to_py)?;
+        let t = ik
+            .tensions
+            .ok_or_else(|| PyValueError::new_err("no tensions"))?;
+        Ok((ik.lengths, t))
+    }
+
+    /// Cable tensions under gravity at a pose.
+    #[pyo3(signature = (x, y, z, mg=9.81, f_min=0.5, f_max=500.0))]
+    fn ik_tensions(
+        &self,
+        x: f64,
+        y: f64,
+        z: f64,
+        mg: f64,
+        f_min: f64,
+        f_max: f64,
+    ) -> PyResult<Vec<f64>> {
+        Ok(self.ik_with_wrench(x, y, z, mg, f_min, f_max)?.1)
+    }
+
+    /// Wrench feasibility under gravity.
+    #[pyo3(signature = (x, y, z, mg=9.81, f_min=0.5, f_max=500.0))]
+    fn is_feasible(
+        &self,
+        x: f64,
+        y: f64,
+        z: f64,
+        mg: f64,
+        f_min: f64,
+        f_max: f64,
+    ) -> PyResult<bool> {
+        let pose = Pose::from_position(Vec3::new(x, y, z));
+        let w = DVector::from_vec(vec![0.0, 0.0, -mg]);
+        self.inner
+            .is_wrench_feasible(&pose, w, f_min, f_max)
+            .map_err(to_py)
+    }
+
+    /// Restraint class: `IRPM` / `CRPM` / `RRPM`.
+    fn classify(&self) -> PyResult<String> {
+        Ok(self.inner.classify().map_err(to_py)?.as_str().into())
+    }
+
+    /// Translational length Jacobian as row-major nested lists (m×3).
+    fn jacobian(&self, x: f64, y: f64, z: f64) -> PyResult<Vec<Vec<f64>>> {
+        let pose = Pose::from_position(Vec3::new(x, y, z));
+        let j = self.inner.length_jacobian(&pose).map_err(to_py)?;
+        let mut rows = Vec::with_capacity(j.nrows());
+        for r in 0..j.nrows() {
+            rows.push(vec![j[(r, 0)], j[(r, 1)], j[(r, 2)]]);
+        }
+        Ok(rows)
     }
 
     /// Forward kinematics from lengths. Returns (x, y, z, residual, method_name).

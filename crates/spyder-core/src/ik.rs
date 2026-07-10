@@ -3,7 +3,7 @@
 use nalgebra::DVector;
 use spyder_actuation::{length_delta_to_command, Motor, MotorCommand, Winch};
 use spyder_cables::{CableContext, CableModel, Ideal};
-use spyder_statics::{closed_form_tensions, structure_matrix_3, structure_matrix_6};
+use spyder_statics::{solve_tensions, structure_matrix_3, structure_matrix_6};
 
 use crate::anchor::{Anchor, PlatformAttachment};
 use crate::error::{Result, SpyderError};
@@ -161,7 +161,7 @@ pub fn apply_ik_options(
                     "point-mass wrench must be 3 or first-3 of 6".into(),
                 ));
             };
-            closed_form_tensions(&a, &w, f_min, f_max).map_err(|e| match e {
+            solve_tensions(&a, &w, f_min, f_max).map_err(|e| match e {
                 spyder_statics::TensionError::Infeasible => SpyderError::InfeasibleWrench,
                 spyder_statics::TensionError::Singular => SpyderError::SingularStructure,
                 other => SpyderError::Config(other.to_string()),
@@ -174,7 +174,7 @@ pub fn apply_ik_options(
                     "platform wrench must be 6-vector".into(),
                 ));
             }
-            closed_form_tensions(&a, wrench, f_min, f_max).map_err(|e| match e {
+            solve_tensions(&a, wrench, f_min, f_max).map_err(|e| match e {
                 spyder_statics::TensionError::Infeasible => SpyderError::InfeasibleWrench,
                 spyder_statics::TensionError::Singular => SpyderError::SingularStructure,
                 other => SpyderError::Config(other.to_string()),

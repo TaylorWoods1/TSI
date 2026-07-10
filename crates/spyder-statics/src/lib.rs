@@ -2,11 +2,15 @@
 
 #![deny(missing_docs)]
 
+pub mod classify;
 pub mod structure;
 pub mod tension;
 
+pub use classify::{classify_restraint, RestraintClass};
 pub use structure::{structure_matrix_3, structure_matrix_6, StructureError, Vec3};
-pub use tension::{closed_form_tensions, is_wrench_feasible, TensionError};
+pub use tension::{
+    closed_form_tensions, is_wrench_feasible, qp_tensions, solve_tensions, TensionError,
+};
 
 #[cfg(test)]
 mod tests {

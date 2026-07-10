@@ -261,6 +261,19 @@ impl Robot {
         }
     }
 
+    /// Restraint class from cable count vs DOF (3 point-mass / 6 platform).
+    pub fn classify(&self) -> Result<spyder_statics::RestraintClass> {
+        let n = if self.point_mass { 3 } else { 6 };
+        spyder_statics::classify_restraint(self.anchors.len(), n)
+            .map_err(SpyderError::Config)
+    }
+
+    /// Translational length Jacobian \(J\) with \(\dot L \approx J v\).
+    pub fn length_jacobian(&self, pose: &Pose) -> Result<nalgebra::DMatrix<f64>> {
+        let attachments = self.effective_attachments();
+        crate::jacobian::length_jacobian(&self.anchors, &attachments, pose)
+    }
+
     /// Forward kinematics (ideal length measurements).
     pub fn fk(&self, lengths: &[f64], seed: Vec3) -> Result<FkResult> {
         if !self.point_mass {
@@ -418,5 +431,84 @@ mod tests {
         let ik = robot.ik_with_options(&pose, &opts).unwrap();
         assert!(ik.unstrained_lengths.iter().all(|u| u.is_some()));
         assert!(ik.tensions.is_some());
+    }
+
+    #[test]
+    fn classify_rect4_rrpm_triangle_crpm() {
+        let rect = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        assert_eq!(
+            rect.classify().unwrap(),
+            spyder_statics::RestraintClass::Rrpm
+        );
+        let tri = Robot::from_preset(Preset::RegularPolygon {
+            n: 3,
+            radius: 2.0,
+            height: 3.0,
+        })
+        .unwrap();
+        assert_eq!(
+            tri.classify().unwrap(),
+            spyder_statics::RestraintClass::Crpm
+        );
+    }
+
+    #[test]
+    fn lengths_invariant_under_rigid_world_translation() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 6.0,
+            depth: 4.0,
+            height: 5.0,
+        })
+        .unwrap();
+        let pose = Pose::from_position(Vec3::new(0.3, -0.2, 1.2));
+        let l0 = robot.ik(&pose).unwrap().lengths;
+        let shift = Vec3::new(10.0, -4.0, 2.5);
+        let mut shifted = robot.clone();
+        for a in &mut shifted.anchors {
+            a.exit += shift;
+        }
+        let pose2 = Pose::from_position(pose.position + shift);
+        let l1 = shifted.ik(&pose2).unwrap().lengths;
+        for (a, b) in l0.iter().zip(l1.iter()) {
+            assert_relative_eq!(a, b, epsilon = 1e-9);
+        }
+    }
+
+    #[test]
+    fn polygon_n_motors_ik_fk_round_trip() {
+        for n in [3usize, 5, 6] {
+            let robot = Robot::from_preset(Preset::RegularPolygon {
+                n,
+                radius: 3.0,
+                height: 4.0,
+            })
+            .unwrap();
+            let pose = Pose::from_position(Vec3::new(0.15, -0.1, 1.0));
+            let ik = robot.ik(&pose).unwrap();
+            assert_eq!(ik.lengths.len(), n);
+            let fk = robot.fk(&ik.lengths, Vec3::new(0.0, 0.0, 1.5)).unwrap();
+            assert_relative_eq!(fk.position.x, pose.position.x, epsilon = 1e-5);
+            assert_relative_eq!(fk.position.y, pose.position.y, epsilon = 1e-5);
+            assert_relative_eq!(fk.position.z, pose.position.z, epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn length_jacobian_rows_match_cable_count() {
+        let robot = Robot::from_preset(Preset::Rect {
+            width: 4.0,
+            depth: 4.0,
+            height: 3.0,
+        })
+        .unwrap();
+        let j = robot
+            .length_jacobian(&Pose::from_position(Vec3::new(0.0, 0.0, 1.0)))
+            .unwrap();
+        assert_eq!((j.nrows(), j.ncols()), (4, 3));
     }
 }

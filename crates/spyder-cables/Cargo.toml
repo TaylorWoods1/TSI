@@ -1,0 +1,14 @@
+[package]
+name = "spyder-cables"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cable models for spyder: ideal, pulley, and Irvine sag"
+
+[dependencies]
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+approx = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

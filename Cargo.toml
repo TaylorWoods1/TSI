@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/spyder-core",
+    "crates/spyder-cables",
+    "crates/spyder-statics",
+    "crates/spyder-actuation",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Spyder Contributors"]
+
+[workspace.dependencies]
+nalgebra = "0.33"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+approx = "0.5"

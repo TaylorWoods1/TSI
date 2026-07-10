@@ -1,0 +1,18 @@
+[package]
+name = "spyder-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Parametric spider-cam / CDPR core types, presets, IK, and FK"
+
+[dependencies]
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+approx = { workspace = true }
+spyder-cables = { path = "../spyder-cables" }
+spyder-statics = { path = "../spyder-statics" }
+spyder-actuation = { path = "../spyder-actuation" }
+
+[dev-dependencies]
+approx = { workspace = true }

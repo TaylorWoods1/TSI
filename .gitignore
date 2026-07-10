@@ -7,5 +7,6 @@ dist/
 build/
 .next/
 *.log
-
+/target/
+**/*.rs.bk
 .superpowers/

@@ -1,0 +1,14 @@
+[package]
+name = "spyder-actuation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Winch and motor command mapping for spyder"
+
+[dependencies]
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+approx = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

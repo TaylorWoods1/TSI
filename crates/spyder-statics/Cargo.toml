@@ -1,0 +1,14 @@
+[package]
+name = "spyder-statics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Structure matrix, tension distribution, and wrench feasibility"
+
+[dependencies]
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+approx = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

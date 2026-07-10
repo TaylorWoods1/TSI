@@ -1,20 +1,75 @@
-//! Run session and mock playback helpers.
+//! Run session and hardware playback helpers.
 
 use spyder_core::{Pose, Robot, Vec3};
 use spyder_runtime::{
-    uniform_axes, MockBackend, MotorBackend, Player, RuntimeError, SafetyLimits,
+    uniform_axes, Axis, AxisMap, MockBackend, MotorBackend, Player, RuntimeError, SafetyLimits,
+    StepperBackend, TcpTransport, Transport,
 };
 
-use crate::dto::{PlayLineRequest, PlayLineResponse, RunStatusResponse};
+use crate::dto::{
+    ConnectRequest, PlayLineRequest, PlayLineResponse, RunStatusResponse, SafetyLimitsDto,
+};
 
-/// In-process run session (mock backend for MVP).
+/// Connected motor backend variants (Send-safe for Axum state).
+pub enum RunBackend {
+    /// In-process mock.
+    Mock(MockBackend),
+    /// Stepper over TCP (`host:port`).
+    Stepper(StepperBackend),
+}
+
+impl MotorBackend for RunBackend {
+    fn axis_count(&self) -> usize {
+        match self {
+            RunBackend::Mock(b) => b.axis_count(),
+            RunBackend::Stepper(b) => b.axis_count(),
+        }
+    }
+
+    fn move_steps(&mut self, steps: &[i64], delays_s: &[f64]) -> spyder_runtime::Result<()> {
+        match self {
+            RunBackend::Mock(b) => b.move_steps(steps, delays_s),
+            RunBackend::Stepper(b) => b.move_steps(steps, delays_s),
+        }
+    }
+
+    fn positions(&self) -> &[i64] {
+        match self {
+            RunBackend::Mock(b) => b.positions(),
+            RunBackend::Stepper(b) => b.positions(),
+        }
+    }
+
+    fn read_feedback_steps(&mut self) -> spyder_runtime::Result<Vec<i64>> {
+        match self {
+            RunBackend::Mock(b) => b.read_feedback_steps(),
+            RunBackend::Stepper(b) => b.read_feedback_steps(),
+        }
+    }
+
+    fn estop(&mut self) -> spyder_runtime::Result<()> {
+        match self {
+            RunBackend::Mock(b) => b.estop(),
+            RunBackend::Stepper(b) => b.estop(),
+        }
+    }
+
+    fn home_hardware(&mut self) -> spyder_runtime::Result<()> {
+        match self {
+            RunBackend::Mock(b) => b.home_hardware(),
+            RunBackend::Stepper(b) => b.home_hardware(),
+        }
+    }
+}
+
+/// In-process run session.
 pub struct RunSession {
-    /// Backend identifier (`mock`, `stepper`, etc.).
+    /// Backend identifier.
     pub backend_name: String,
     /// Winch/motor axes aligned with cables.
-    pub axes: Vec<spyder_runtime::Axis>,
-    /// Mock motor backend.
-    pub mock: MockBackend,
+    pub axes: Vec<Axis>,
+    /// Connected backend.
+    pub backend: RunBackend,
     /// Home pose for playback.
     pub home: Vec3,
     /// Software e-stop latched.
@@ -25,36 +80,105 @@ pub struct RunSession {
     pub closed_loop: bool,
     /// Wall-clock realtime playback toggle.
     pub realtime: bool,
+    /// Active safety limits.
+    pub safety: SafetyLimits,
 }
 
 impl RunSession {
-    /// Connect a mock backend for the given robot.
-    pub fn connect_mock(robot: &Robot, home: Vec3) -> Result<Self, String> {
+    /// Connect using request parameters.
+    pub fn connect(robot: &Robot, home: Vec3, req: &ConnectRequest) -> Result<Self, String> {
         let n = robot.anchors.len();
         let axes = uniform_axes(n, 0.05, 200.0).map_err(|e| e.to_string())?;
-        Ok(Self {
-            backend_name: "mock".into(),
-            axes,
-            mock: MockBackend::new(n),
-            home,
-            estopped: false,
-            last_steps: vec![0; n],
-            closed_loop: false,
-            realtime: false,
-        })
+        let safety = default_safety();
+        match req.backend.as_str() {
+            "mock" => Ok(Self {
+                backend_name: "mock".into(),
+                axes,
+                backend: RunBackend::Mock(MockBackend::new(n)),
+                home,
+                estopped: false,
+                last_steps: vec![0; n],
+                closed_loop: false,
+                realtime: false,
+                safety,
+            }),
+            "stepper" => {
+                let device = req
+                    .device
+                    .clone()
+                    .ok_or_else(|| "stepper requires device host:port".to_string())?;
+                if !device.contains(':') {
+                    return Err(
+                        "GUI stepper backend requires TCP host:port (serial use CLI)".into(),
+                    );
+                }
+                let transport = open_tcp(&device)?;
+                Ok(Self {
+                    backend_name: "stepper".into(),
+                    axes,
+                    backend: RunBackend::Stepper(StepperBackend::new(transport, n)),
+                    home,
+                    estopped: false,
+                    last_steps: vec![0; n],
+                    closed_loop: false,
+                    realtime: false,
+                    safety,
+                })
+            }
+            "odrive" => Err(
+                "odrive GUI connect: use CLI or TCP stepper sim for now".into(),
+            ),
+            "multiboard" => {
+                let map_val = req
+                    .axis_map
+                    .clone()
+                    .ok_or_else(|| "multiboard requires axis_map JSON".to_string())?;
+                let map: AxisMap =
+                    serde_json::from_value(map_val).map_err(|e| format!("axis_map: {e}"))?;
+                map.validate().map_err(|e| e.to_string())?;
+                // Dry-run: mock backend with cable count from axis map.
+                Ok(Self {
+                    backend_name: "multiboard-mock".into(),
+                    axes,
+                    backend: RunBackend::Mock(MockBackend::new(map.cables.len())),
+                    home,
+                    estopped: false,
+                    last_steps: vec![0; n],
+                    closed_loop: false,
+                    realtime: false,
+                    safety,
+                })
+            }
+            other => Err(format!("unknown backend: {other}")),
+        }
     }
 
-    /// Trip e-stop on mock backend.
+    /// Connect a mock backend for the given robot (tests).
+    pub fn connect_mock(robot: &Robot, home: Vec3) -> Result<Self, String> {
+        Self::connect(
+            robot,
+            home,
+            &ConnectRequest {
+                backend: "mock".into(),
+                device: None,
+                baud: None,
+                axis_map: None,
+            },
+        )
+    }
+
+    /// Trip e-stop.
     pub fn estop(&mut self) -> Result<(), String> {
         self.estopped = true;
-        self.mock.estop().map_err(|e| e.to_string())
+        self.backend.estop().map_err(|e| e.to_string())
     }
 
     /// Clear software e-stop latch.
     pub fn clear_estop(&mut self) {
         self.estopped = false;
-        // Player safety is reconstructed on each play; mock estopped flag cleared on next connect
-        self.mock.estopped = false;
+        if let RunBackend::Mock(ref mut m) = self.backend {
+            m.estopped = false;
+        }
     }
 
     /// Play a straight-line trajectory.
@@ -71,16 +195,18 @@ impl RunSession {
 
         let start = Vec3::new(req.start[0], req.start[1], req.start[2]);
         let end = Vec3::new(req.end[0], req.end[1], req.end[2]);
-        let backend = std::mem::replace(&mut self.mock, MockBackend::new(robot.anchors.len()));
+        let n = robot.anchors.len();
+        let placeholder = RunBackend::Mock(MockBackend::new(n));
+        let backend = std::mem::replace(&mut self.backend, placeholder);
 
         let mut player = Player::new(robot, self.axes.clone(), backend, self.home)
             .map_err(|e| e.to_string())?
             .with_closed_loop(req.closed_loop)
             .with_realtime(req.realtime)
-            .with_safety(default_safety());
+            .with_safety(self.safety.clone());
 
         let result = player.move_line(start, end, req.segments, 2.0);
-        self.mock = player.backend;
+        self.backend = player.backend;
         result.map_err(|e| match e {
             RuntimeError::Safety(s) if s.contains("e-stop") => {
                 self.estopped = true;
@@ -89,8 +215,8 @@ impl RunSession {
             other => other.to_string(),
         })?;
 
-        self.last_steps = self.mock.positions().to_vec();
-        let feedback_pose = pose_from_mock(robot, &self.axes, &self.mock, self.home)?;
+        self.last_steps = self.backend.positions().to_vec();
+        let feedback_pose = pose_from_backend(robot, &self.axes, &self.backend, self.home)?;
 
         Ok(PlayLineResponse {
             final_steps: self.last_steps.clone(),
@@ -100,7 +226,7 @@ impl RunSession {
 
     /// Status snapshot for polling.
     pub fn status(&self, robot: &Robot) -> RunStatusResponse {
-        let pose = pose_from_mock(robot, &self.axes, &self.mock, self.home)
+        let pose = pose_from_backend(robot, &self.axes, &self.backend, self.home)
             .ok()
             .map(|p| [p.x, p.y, p.z]);
         RunStatusResponse {
@@ -109,8 +235,19 @@ impl RunSession {
             estopped: self.estopped,
             steps: Some(self.last_steps.clone()),
             pose,
+            safety: Some(SafetyLimitsDto {
+                min: [self.safety.min.x, self.safety.min.y, self.safety.min.z],
+                max: [self.safety.max.x, self.safety.max.y, self.safety.max.z],
+                max_speed_mps: self.safety.max_speed_mps,
+            }),
         }
     }
+}
+
+fn open_tcp(device: &str) -> Result<Box<dyn Transport>, String> {
+    Ok(Box::new(
+        TcpTransport::connect(device).map_err(|e| e.to_string())?,
+    ))
 }
 
 fn default_safety() -> SafetyLimits {
@@ -122,29 +259,33 @@ fn default_safety() -> SafetyLimits {
     }
 }
 
-fn pose_from_mock(
+fn pose_from_backend(
     robot: &Robot,
-    axes: &[spyder_runtime::Axis],
-    mock: &MockBackend,
+    axes: &[Axis],
+    backend: &RunBackend,
     seed: Vec3,
 ) -> Result<Vec3, String> {
     let home_ik = robot
         .ik(&Pose::from_position(seed))
         .map_err(|e| e.to_string())?;
-    spyder_runtime::pose_from_steps(
-        robot,
-        &home_ik.lengths,
-        &mock.positions(),
-        axes,
-        seed,
-    )
-    .map_err(|e| e.to_string())
+    let steps: Vec<i64> = backend.positions().to_vec();
+    spyder_runtime::pose_from_steps(robot, &home_ik.lengths, &steps, axes, seed)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use spyder_core::Preset;
+
+    fn assert_send<T: Send>() {}
+
+    #[test]
+    fn backends_are_send() {
+        assert_send::<MockBackend>();
+        assert_send::<RunBackend>();
+        assert_send::<RunSession>();
+    }
 
     #[test]
     fn mock_play_returns_nonzero_steps() {

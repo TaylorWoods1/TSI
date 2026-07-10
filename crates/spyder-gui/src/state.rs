@@ -6,7 +6,9 @@ use spyder_cables::Sag;
 use spyder_core::{Preset, Robot, Vec3};
 use tokio::sync::Mutex;
 
-use crate::dto::VenueDto;
+use crate::dto::{AnchorDto, CalibrationDto, MotorAxisDto, VenueDto};
+use spyder_runtime::Calibration;
+
 use crate::run_svc::RunSession;
 
 /// Server-side robot and home pose.
@@ -17,6 +19,10 @@ pub struct AppState {
     pub home: Mutex<Vec3>,
     /// Optional connected run session.
     pub run_session: Mutex<Option<RunSession>>,
+    /// Field calibration snapshot.
+    pub calibration: Mutex<Option<Calibration>>,
+    /// Per-cable motor mapping (drum radius, steps/rev).
+    pub motor_axes: Mutex<Vec<MotorAxisDto>>,
 }
 
 impl AppState {
@@ -32,6 +38,8 @@ impl AppState {
             robot: Mutex::new(robot),
             home: Mutex::new(Vec3::new(0.0, 0.0, 2.0)),
             run_session: Mutex::new(None),
+            calibration: Mutex::new(None),
+            motor_axes: Mutex::new(Vec::new()),
         })
     }
 }
@@ -79,7 +87,7 @@ pub async fn venue_from_state(state: &AppState) -> VenueDto {
     let home = *state.home.lock().await;
     let params = cable_model_params(&robot);
     VenueDto {
-        anchors: robot.anchors.iter().map(|a| a.exit.into()).collect(),
+        anchors: robot.anchors.iter().map(anchor_to_dto).collect(),
         attachments: robot
             .attachments
             .iter()
@@ -144,6 +152,60 @@ pub fn classify_robot(robot: &Robot) -> Result<String, String> {
         .classify()
         .map(|c| c.as_str().to_string())
         .map_err(|e| e.to_string())
+}
+
+/// Map core anchor to API DTO.
+pub fn anchor_to_dto(a: &spyder_core::Anchor) -> AnchorDto {
+    AnchorDto {
+        x: a.exit.x,
+        y: a.exit.y,
+        z: a.exit.z,
+        pulley_axis: a.pulley_axis.map(|v| v.into()),
+        pulley_radius: a.pulley_radius,
+        pulley_winch_exit: a.pulley_winch_exit.map(|v| v.into()),
+        pulley_runout_m: a.pulley_runout_m,
+    }
+}
+
+/// Build core anchor from DTO + model defaults.
+pub fn anchor_from_dto(dto: &AnchorDto, params: &CableModelParams) -> spyder_core::Anchor {
+    let exit = dto.exit();
+    let mut anchor = if params.model == "pulley" {
+        let r = if dto.pulley_radius > 0.0 {
+            dto.pulley_radius
+        } else {
+            params.pulley_radius
+        };
+        if let Some(axis) = &dto.pulley_axis {
+            let axis_v: Vec3 = axis.clone().into();
+            spyder_core::Anchor::with_pulley(
+                exit,
+                axis_v,
+                r,
+                dto.pulley_winch_exit.clone().map(Into::into),
+            )
+        } else {
+            spyder_core::Anchor::with_z_pulley(exit, r)
+        }
+    } else {
+        spyder_core::Anchor::point(exit)
+    };
+    if dto.pulley_runout_m > 0.0 {
+        anchor.pulley_runout_m = dto.pulley_runout_m;
+    }
+    anchor
+}
+
+/// Calibration to DTO.
+pub fn calibration_to_dto(cal: &Calibration) -> CalibrationDto {
+    CalibrationDto {
+        home: cal.home,
+        home_lengths_m: cal.home_lengths_m.clone(),
+        drum_radius_m: cal.drum_radius_m,
+        steps_per_rev: cal.steps_per_rev,
+        anchors_m: cal.anchors_m.clone(),
+        saved_at: cal.saved_at.clone(),
+    }
 }
 
 #[cfg(test)]

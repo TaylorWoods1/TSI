@@ -260,3 +260,29 @@ body {
   color: var(--text);
   font-family: var(--font-body);
 }
+
+@keyframes estop-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.estop-pulse {
+  animation: estop-pulse 0.9s ease-in-out infinite;
+}
+
+.waypoint-table {
+  width: 100%;
+  font-size: 0.75rem;
+  border-collapse: collapse;
+}
+
+.waypoint-table th,
+.waypoint-table td {
+  border: 1px solid var(--border);
+  padding: 0.25rem;
+}

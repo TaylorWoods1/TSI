@@ -9,10 +9,16 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use crate::design::{from_preset, load_venue, set_anchors, set_cable_model, venue_toml};
+use crate::cal_svc::{
+    apply_calibration, calibration_json, capture_calibration, get_calibration, load_calibration,
+    set_calibration_anchor,
+};
+use crate::design::{from_preset, get_venue, load_venue, set_anchors, set_cable_model, set_home, venue_toml};
 use crate::dto::*;
 use crate::run_svc::RunSession;
-use crate::sim_svc::{feasible, fk, ik, jacobian, scene_snapshot, traj_line, workspace};
+use crate::sim_svc::{
+    feasible, fk, ik, jacobian, scene_export, scene_snapshot, traj_line, traj_waypoints, workspace,
+};
 use crate::state::AppState;
 use spyder_runtime::MotorBackend;
 
@@ -20,16 +26,10 @@ async fn run_connect(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ConnectRequest>,
 ) -> Result<Json<ConnectResponse>, ApiError> {
-    if req.backend != "mock" {
-        return Err(ApiError(format!(
-            "only mock backend supported in GUI MVP (got {})",
-            req.backend
-        )));
-    }
     let robot = state.robot.lock().await;
     let home = *state.home.lock().await;
     let n = robot.anchors.len();
-    let session = RunSession::connect_mock(&robot, home)?;
+    let session = RunSession::connect(&robot, home, &req)?;
     drop(robot);
     *state.run_session.lock().await = Some(session);
     Ok(Json(ConnectResponse { ok: true, axes: n }))
@@ -46,8 +46,11 @@ async fn run_home(State(state): State<Arc<AppState>>) -> Result<Json<OkResponse>
     if session.estopped {
         return Err(ApiError("e-stop latched".into()));
     }
-    session.mock.home_hardware().map_err(|e| ApiError(e.to_string()))?;
-    session.last_steps = session.mock.positions().to_vec();
+    session
+        .backend
+        .home_hardware()
+        .map_err(|e| ApiError(e.to_string()))?;
+    session.last_steps = session.backend.positions().to_vec();
     Ok(Json(OkResponse { ok: true }))
 }
 
@@ -87,6 +90,7 @@ async fn run_status(State(state): State<Arc<AppState>>) -> Json<RunStatusRespons
             estopped: false,
             steps: None,
             pose: None,
+            safety: None,
         })
     }
 }
@@ -95,10 +99,12 @@ async fn run_status(State(state): State<Arc<AppState>>) -> Json<RunStatusRespons
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/venue", get(venue_get))
         .route("/venue/load", post(venue_load))
         .route("/venue/from_preset", post(venue_from_preset))
         .route("/venue/set_anchors", post(venue_set_anchors))
         .route("/venue/set_model", post(venue_set_model))
+        .route("/venue/home", post(venue_set_home))
         .route("/venue/toml", get(venue_toml_get))
         .route("/ik", post(ik_route))
         .route("/fk", post(fk_route))
@@ -106,7 +112,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/feasible", post(feasible_route))
         .route("/workspace", post(workspace_route))
         .route("/traj/line", post(traj_line_route))
+        .route("/traj/waypoints", post(traj_waypoints_route))
         .route("/scene/snapshot", post(scene_snapshot_route))
+        .route("/scene/export", post(scene_export_route))
+        .route("/calibration", get(calibration_get))
+        .route("/calibration/capture", post(calibration_capture))
+        .route("/calibration/anchor", post(calibration_anchor))
+        .route("/calibration/apply", post(calibration_apply))
+        .route("/calibration/json", get(calibration_json_get))
+        .route("/calibration/load", post(calibration_load))
         .route("/run/connect", post(run_connect))
         .route("/run/disconnect", post(run_disconnect))
         .route("/run/home", post(run_home))
@@ -136,6 +150,17 @@ async fn venue_from_preset(
     Json(req): Json<FromPresetRequest>,
 ) -> Result<Json<VenueResponse>, ApiError> {
     Ok(Json(from_preset(&state, &req).await?))
+}
+
+async fn venue_get(State(state): State<Arc<AppState>>) -> Result<Json<VenueResponse>, ApiError> {
+    Ok(Json(get_venue(&state).await?))
+}
+
+async fn venue_set_home(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SetHomeRequest>,
+) -> Result<Json<VenueResponse>, ApiError> {
+    Ok(Json(set_home(&state, &req).await?))
 }
 
 async fn venue_set_anchors(
@@ -206,12 +231,65 @@ async fn traj_line_route(
     Ok(Json(traj_line(&robot, &req)?))
 }
 
+async fn traj_waypoints_route(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<TrajWaypointsRequest>,
+) -> Result<Json<TrajWaypointsResponse>, ApiError> {
+    let robot = state.robot.lock().await;
+    Ok(Json(traj_waypoints(&robot, &req)?))
+}
+
 async fn scene_snapshot_route(
     State(state): State<Arc<AppState>>,
     Json(req): Json<SceneSnapshotRequest>,
 ) -> Result<Json<SceneSnapshotResponse>, ApiError> {
     let robot = state.robot.lock().await;
     Ok(Json(scene_snapshot(&robot, &req)?))
+}
+
+async fn scene_export_route(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SceneExportRequest>,
+) -> Result<Json<SceneExportResponse>, ApiError> {
+    let robot = state.robot.lock().await;
+    Ok(Json(scene_export(&robot, &req)?))
+}
+
+async fn calibration_get(State(state): State<Arc<AppState>>) -> Json<CalibrationDto> {
+    Json(get_calibration(&state).await)
+}
+
+async fn calibration_capture(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<CalibrationCaptureRequest>,
+) -> Result<Json<CalibrationDto>, ApiError> {
+    Ok(Json(capture_calibration(&state, &req).await?))
+}
+
+async fn calibration_anchor(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<CalibrationAnchorRequest>,
+) -> Result<Json<CalibrationDto>, ApiError> {
+    Ok(Json(set_calibration_anchor(&state, &req).await?))
+}
+
+async fn calibration_apply(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<VenueResponse>, ApiError> {
+    Ok(Json(apply_calibration(&state).await?))
+}
+
+async fn calibration_json_get(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<CalibrationJsonResponse>, ApiError> {
+    Ok(Json(calibration_json(&state).await?))
+}
+
+async fn calibration_load(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<CalibrationLoadRequest>,
+) -> Result<Json<CalibrationDto>, ApiError> {
+    Ok(Json(load_calibration(&state, &req).await?))
 }
 
 /// API error type mapping to HTTP 4xx + JSON body.

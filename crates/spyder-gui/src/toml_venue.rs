@@ -18,6 +18,10 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
     let mut attachments: Vec<PlatformAttachment> = Vec::new();
     let mut cur_xyz: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
     let mut cur_kind = "";
+    let mut cur_pulley_radius: Option<f64> = None;
+    let mut cur_pulley_axis: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
+    let mut cur_winch: Option<(Option<f64>, Option<f64>, Option<f64>)> = None;
+    let mut cur_runout: Option<f64> = None;
     let mut home = Vec3::new(0.0, 0.0, 2.0);
     let mut in_home = false;
     let mut cable_model = String::from("ideal");
@@ -27,6 +31,10 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
 
     let flush = |cur: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
                  kind: &str,
+                 pulley_radius: &mut Option<f64>,
+                 pulley_axis: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
+                 winch: &mut Option<(Option<f64>, Option<f64>, Option<f64>)>,
+                 runout: &mut Option<f64>,
                  anchors: &mut Vec<Anchor>,
                  attachments: &mut Vec<PlatformAttachment>| {
         if let Some((x, y, z)) = cur.take() {
@@ -36,7 +44,29 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
                 z.ok_or("missing z")?,
             );
             if kind == "anchor" {
-                anchors.push(Anchor::point(v));
+                let mut a = Anchor::point(v);
+                if let Some(r) = pulley_radius.take() {
+                    a.pulley_radius = r;
+                    a.pulley_axis = Some(Vec3::z());
+                }
+                if let Some((ax, ay, az)) = pulley_axis.take() {
+                    a.pulley_axis = Some(Vec3::new(
+                        ax.ok_or("missing pulley_axis x")?,
+                        ay.ok_or("missing pulley_axis y")?,
+                        az.ok_or("missing pulley_axis z")?,
+                    ));
+                }
+                if let Some((wx, wy, wz)) = winch.take() {
+                    a.pulley_winch_exit = Some(Vec3::new(
+                        wx.ok_or("missing winch x")?,
+                        wy.ok_or("missing winch y")?,
+                        wz.ok_or("missing winch z")?,
+                    ));
+                }
+                if let Some(ro) = runout.take() {
+                    a.pulley_runout_m = ro;
+                }
+                anchors.push(a);
             } else if kind == "attachment" {
                 attachments.push(PlatformAttachment::at(v));
             }
@@ -52,27 +82,67 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
             continue;
         }
         if line == "[[anchors]]" {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments)?;
+            flush(
+                &mut cur_xyz,
+                cur_kind,
+                &mut cur_pulley_radius,
+                &mut cur_pulley_axis,
+                &mut cur_winch,
+                &mut cur_runout,
+                &mut anchors,
+                &mut attachments,
+            )?;
             cur_kind = "anchor";
             in_home = false;
             cur_xyz = Some((None, None, None));
+            cur_pulley_radius = None;
+            cur_pulley_axis = None;
+            cur_winch = None;
+            cur_runout = None;
             continue;
         }
         if line == "[[attachments]]" {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments)?;
+            flush(
+                &mut cur_xyz,
+                cur_kind,
+                &mut cur_pulley_radius,
+                &mut cur_pulley_axis,
+                &mut cur_winch,
+                &mut cur_runout,
+                &mut anchors,
+                &mut attachments,
+            )?;
             cur_kind = "attachment";
             in_home = false;
             cur_xyz = Some((None, None, None));
             continue;
         }
         if line == "[home]" {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments)?;
+            flush(
+                &mut cur_xyz,
+                cur_kind,
+                &mut cur_pulley_radius,
+                &mut cur_pulley_axis,
+                &mut cur_winch,
+                &mut cur_runout,
+                &mut anchors,
+                &mut attachments,
+            )?;
             cur_kind = "";
             in_home = true;
             continue;
         }
         if line.starts_with('[') {
-            flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments)?;
+            flush(
+                &mut cur_xyz,
+                cur_kind,
+                &mut cur_pulley_radius,
+                &mut cur_pulley_axis,
+                &mut cur_winch,
+                &mut cur_runout,
+                &mut anchors,
+                &mut attachments,
+            )?;
             cur_kind = "";
             in_home = false;
             continue;
@@ -85,18 +155,56 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
                     "x" => tuple.0 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
                     "y" => tuple.1 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
                     "z" => tuple.2 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
+                    "pulley_radius" if cur_kind == "anchor" => {
+                        cur_pulley_radius = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?)
+                    }
+                    "pulley_runout_m" if cur_kind == "anchor" => {
+                        cur_runout = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?)
+                    }
                     _ => {}
                 }
                 continue;
+            }
+            if cur_kind == "anchor" {
+                if k == "pulley_axis" {
+                    // skip — handled via [pulley_axis] section not supported; use axis_x keys below
+                }
+            }
+            if cur_kind == "anchor" {
+                if cur_pulley_axis.is_none() {
+                    cur_pulley_axis = Some((None, None, None));
+                }
+                if let Some(axis) = &mut cur_pulley_axis {
+                    match k {
+                        "axis_x" | "pulley_axis_x" => axis.0 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
+                        "axis_y" | "pulley_axis_y" => axis.1 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
+                        "axis_z" | "pulley_axis_z" => axis.2 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?),
+                        "winch_x" => {
+                            let w = cur_winch.get_or_insert((None, None, None));
+                            w.0 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?);
+                        }
+                        "winch_y" => {
+                            let w = cur_winch.get_or_insert((None, None, None));
+                            w.1 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?);
+                        }
+                        "winch_z" => {
+                            let w = cur_winch.get_or_insert((None, None, None));
+                            w.2 = Some(v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?);
+                        }
+                        _ => {}
+                    }
+                }
             }
             if in_home {
                 match k {
                     "x" => home.x = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
                     "y" => home.y = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
                     "z" => home.z = v.parse::<f64>().map_err(|e: std::num::ParseFloatError| e.to_string())?,
-                    _ => {}
+                    _ => in_home = false,
                 }
-                continue;
+                if in_home {
+                    continue;
+                }
             }
             match k {
                 "preset" => preset = v.to_string(),
@@ -114,7 +222,16 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
             }
         }
     }
-    flush(&mut cur_xyz, cur_kind, &mut anchors, &mut attachments)?;
+    flush(
+        &mut cur_xyz,
+        cur_kind,
+        &mut cur_pulley_radius,
+        &mut cur_pulley_axis,
+        &mut cur_winch,
+        &mut cur_runout,
+        &mut anchors,
+        &mut attachments,
+    )?;
 
     if !anchors.is_empty() {
         let atts = if attachments.is_empty() {
@@ -169,7 +286,7 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
 
 /// Emit venue TOML from anchors, attachments, home, and cable model.
 pub fn emit_venue_toml(
-    anchors: &[Vec3],
+    anchors: &[Anchor],
     attachments: &[Vec3],
     point_mass: bool,
     home: Vec3,
@@ -177,7 +294,7 @@ pub fn emit_venue_toml(
 ) -> Result<String, String> {
     let anchors_m: Vec<[f64; 3]> = anchors
         .iter()
-        .map(|a| [a.x, a.y, a.z])
+        .map(|a| [a.exit.x, a.exit.y, a.exit.z])
         .collect();
     let atts: Option<Vec<[f64; 3]>> = if attachments.is_empty() {
         None
@@ -198,6 +315,30 @@ pub fn emit_venue_toml(
         model.sag_ea,
     )
     .map_err(|e| e.to_string())?;
+    // Per-anchor pulley overrides
+    for (i, a) in anchors.iter().enumerate() {
+        if a.pulley_radius > 0.0 || a.pulley_axis.is_some() || a.pulley_winch_exit.is_some() || a.pulley_runout_m > 0.0 {
+            toml.push_str(&format!("\n# anchor {i} pulley geometry\n"));
+            if a.pulley_radius > 0.0 {
+                toml.push_str(&format!("# [[anchors]] index {i}\npulley_radius = {:.6}\n", a.pulley_radius));
+            }
+            if let Some(axis) = a.pulley_axis {
+                toml.push_str(&format!(
+                    "pulley_axis_x = {:.6}\npulley_axis_y = {:.6}\npulley_axis_z = {:.6}\n",
+                    axis.x, axis.y, axis.z
+                ));
+            }
+            if let Some(w) = a.pulley_winch_exit {
+                toml.push_str(&format!(
+                    "winch_x = {:.6}\nwinch_y = {:.6}\nwinch_z = {:.6}\n",
+                    w.x, w.y, w.z
+                ));
+            }
+            if a.pulley_runout_m > 0.0 {
+                toml.push_str(&format!("pulley_runout_m = {:.6}\n", a.pulley_runout_m));
+            }
+        }
+    }
     toml.push_str(&format!("\ncable_model = \"{}\"\n", model.model));
     if model.model == "pulley" {
         toml.push_str(&format!("pulley_radius = {:.6}\n", model.pulley_radius));
@@ -217,12 +358,13 @@ mod tests {
 
     #[test]
     fn emit_and_parse_four_anchors() {
-        let anchors = vec![
+        let exits = vec![
             Vec3::new(5.0, 3.0, 8.0),
             Vec3::new(-5.0, 3.0, 8.0),
             Vec3::new(-5.0, -3.0, 8.0),
             Vec3::new(5.0, -3.0, 8.0),
         ];
+        let anchors: Vec<Anchor> = exits.iter().map(|v| Anchor::point(*v)).collect();
         let params = CableModelParams {
             model: "pulley".into(),
             pulley_radius: 0.06,

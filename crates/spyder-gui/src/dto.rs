@@ -39,10 +39,40 @@ impl From<[f64; 3]> for Vec3Dto {
     }
 }
 
+/// Rich anchor descriptor (exit + optional pulley geometry).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AnchorDto {
+    /// Exit X (meters).
+    pub x: f64,
+    /// Exit Y (meters).
+    pub y: f64,
+    /// Exit Z (meters).
+    pub z: f64,
+    /// Pulley swivel axis (world frame); default Z-up when pulley model active.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pulley_axis: Option<Vec3Dto>,
+    /// Per-anchor pulley radius override (0 = use venue default).
+    #[serde(default)]
+    pub pulley_radius: f64,
+    /// Unit direction cable leaves rim toward winch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pulley_winch_exit: Option<Vec3Dto>,
+    /// Constant rim-to-encoder runout (meters).
+    #[serde(default)]
+    pub pulley_runout_m: f64,
+}
+
+impl AnchorDto {
+    /// Exit as core vector.
+    pub fn exit(&self) -> Vec3 {
+        Vec3::new(self.x, self.y, self.z)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VenueDto {
-    /// Anchor exit positions.
-    pub anchors: Vec<Vec3Dto>,
+    /// Anchor exit positions and pulley fields.
+    pub anchors: Vec<AnchorDto>,
     /// Platform attachment points (body frame).
     pub attachments: Vec<Vec3Dto>,
     /// Point-mass vs rigid platform.
@@ -129,9 +159,16 @@ fn default_true() -> bool {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SetHomeRequest {
+    /// Home pose `[x, y, z]`.
+    pub home: [f64; 3],
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetAnchorsRequest {
-    /// Anchor positions.
-    pub anchors: Vec<Vec3Dto>,
+    /// Anchor positions (legacy flat `{x,y,z}` also accepted via untagged).
+    #[serde(deserialize_with = "deserialize_anchors")]
+    pub anchors: Vec<AnchorDto>,
     /// Optional attachment points.
     #[serde(default)]
     pub attachments: Option<Vec<Vec3Dto>>,
@@ -180,9 +217,6 @@ pub struct IkRequest {
     /// Cable model override.
     #[serde(default)]
     pub model: Option<String>,
-    /// Cable model override.
-    #[serde(default)]
-    pub model: Option<String>,
     /// Gravity magnitude for wrench (Newtons); required for sag model.
     #[serde(default)]
     pub mg: Option<f64>,
@@ -206,6 +240,15 @@ pub struct FkRequest {
     pub lengths: Vec<f64>,
     /// Seed position for numeric FK.
     pub seed: [f64; 3],
+    /// Seed orientation as rotation vector.
+    #[serde(default)]
+    pub orientation_rv: Option<[f64; 3]>,
+    /// Per-cable tensions for sag FK.
+    #[serde(default)]
+    pub tensions: Option<Vec<f64>>,
+    /// Allow underconstrained platform FK.
+    #[serde(default)]
+    pub allow_underconstrained: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -224,12 +267,17 @@ pub struct FkResponse {
 pub struct JacobianRequest {
     /// Pose position.
     pub xyz: [f64; 3],
+    /// Orientation rotation vector (platform mode).
+    #[serde(default)]
+    pub orientation_rv: Option<[f64; 3]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JacobianResponse {
-    /// Jacobian rows (one per cable).
-    pub rows: Vec<[f64; 3]>,
+    /// Jacobian rows (one per cable); 3 or 6 columns.
+    pub rows: Vec<Vec<f64>>,
+    /// Column count (3 point-mass, 6 platform).
+    pub cols: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -322,9 +370,51 @@ pub struct TrajLineResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrajWaypointsRequest {
+    /// Cartesian waypoints.
+    pub waypoints: Vec<[f64; 3]>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrajWaypointsResponse {
+    /// Echo waypoints.
+    pub waypoints: Vec<[f64; 3]>,
+    /// IK lengths per waypoint.
+    pub lengths: Vec<Vec<f64>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SceneSnapshotRequest {
     /// Pose position.
     pub xyz: [f64; 3],
+    /// Orientation rotation vector (platform mode).
+    #[serde(default)]
+    pub orientation_rv: Option<[f64; 3]>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SceneExportRequest {
+    /// Pose position.
+    pub xyz: [f64; 3],
+    /// `html` or `html_anim`.
+    #[serde(default = "default_html_format")]
+    pub format: String,
+    /// Optional waypoint list for animation export.
+    #[serde(default)]
+    pub waypoints: Option<Vec<[f64; 3]>>,
+    /// Orientation rotation vector.
+    #[serde(default)]
+    pub orientation_rv: Option<[f64; 3]>,
+}
+
+fn default_html_format() -> String {
+    "html".into()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SceneExportResponse {
+    /// Self-contained Plotly HTML.
+    pub html: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -398,6 +488,16 @@ pub struct PlayLineResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SafetyLimitsDto {
+    /// Workspace minimum corner.
+    pub min: [f64; 3],
+    /// Workspace maximum corner.
+    pub max: [f64; 3],
+    /// Max Cartesian speed (m/s).
+    pub max_speed_mps: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunStatusResponse {
     /// Whether a run session is active.
     pub connected: bool,
@@ -412,4 +512,125 @@ pub struct RunStatusResponse {
     /// Latest feedback pose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pose: Option<[f64; 3]>,
+    /// Active safety limits summary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety: Option<SafetyLimitsDto>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationDto {
+    /// Home pose.
+    pub home: [f64; 3],
+    /// Ideal lengths at home.
+    pub home_lengths_m: Vec<f64>,
+    /// Drum radius (m).
+    pub drum_radius_m: f64,
+    /// Steps per revolution.
+    pub steps_per_rev: f64,
+    /// Measured anchor overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchors_m: Option<Vec<[f64; 3]>>,
+    /// Saved timestamp.
+    pub saved_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationCaptureRequest {
+    /// Override home pose (defaults to venue home).
+    #[serde(default)]
+    pub home: Option<[f64; 3]>,
+    /// Drum radius (m).
+    pub drum_radius_m: f64,
+    /// Steps per revolution.
+    pub steps_per_rev: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationAnchorRequest {
+    /// Anchor index.
+    pub index: usize,
+    /// Measured exit `[x, y, z]`.
+    pub exit: [f64; 3],
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationLoadRequest {
+    /// Calibration JSON text.
+    pub json: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationJsonResponse {
+    /// Pretty JSON.
+    pub json: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotorAxisDto {
+    /// Drum radius (m).
+    pub drum_radius_m: f64,
+    /// Steps per revolution.
+    pub steps_per_rev: f64,
+}
+
+fn deserialize_anchors<'de, D>(deserializer: D) -> Result<Vec<AnchorDto>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, SeqAccess, Visitor};
+    struct V;
+    impl<'de> Visitor<'de> for V {
+        type Value = Vec<AnchorDto>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("anchor array")
+        }
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut out = Vec::new();
+            while let Some(v) = seq.next_element::<serde_json::Value>()? {
+                out.push(parse_anchor_value(v).map_err(de::Error::custom)?);
+            }
+            Ok(out)
+        }
+    }
+    deserializer.deserialize_seq(V)
+}
+
+fn parse_anchor_value(v: serde_json::Value) -> Result<AnchorDto, String> {
+    if let Some(exit) = v.get("exit") {
+        let x = exit.get("x").and_then(|x| x.as_f64()).ok_or("missing x")?;
+        let y = exit.get("y").and_then(|x| x.as_f64()).ok_or("missing y")?;
+        let z = exit.get("z").and_then(|x| x.as_f64()).ok_or("missing z")?;
+        return Ok(AnchorDto {
+            x,
+            y,
+            z,
+            pulley_axis: v.get("pulley_axis").and_then(parse_vec3),
+            pulley_radius: v.get("pulley_radius").and_then(|x| x.as_f64()).unwrap_or(0.0),
+            pulley_winch_exit: v.get("pulley_winch_exit").and_then(parse_vec3),
+            pulley_runout_m: v.get("pulley_runout_m").and_then(|x| x.as_f64()).unwrap_or(0.0),
+        });
+    }
+    let x = v.get("x").and_then(|x| x.as_f64()).ok_or("missing x")?;
+    let y = v.get("y").and_then(|x| x.as_f64()).ok_or("missing y")?;
+    let z = v.get("z").and_then(|x| x.as_f64()).ok_or("missing z")?;
+    Ok(AnchorDto {
+        x,
+        y,
+        z,
+        pulley_axis: v.get("pulley_axis").and_then(parse_vec3),
+        pulley_radius: v.get("pulley_radius").and_then(|x| x.as_f64()).unwrap_or(0.0),
+        pulley_winch_exit: v.get("pulley_winch_exit").and_then(parse_vec3),
+        pulley_runout_m: v.get("pulley_runout_m").and_then(|x| x.as_f64()).unwrap_or(0.0),
+    })
+}
+
+fn parse_vec3(v: &serde_json::Value) -> Option<Vec3Dto> {
+    Some(Vec3Dto {
+        x: v.get("x")?.as_f64()?,
+        y: v.get("y")?.as_f64()?,
+        z: v.get("z")?.as_f64()?,
+    })
 }

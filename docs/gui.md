@@ -2,6 +2,8 @@
 
 Local **Design → Simulate → Run** interface: Axum API on port **7700** + React/Three.js SPA.
 
+**Full configurator guide:** [gui-configurator.md](gui-configurator.md)
+
 ## Quick start (bundled UI)
 
 ```bash
@@ -10,7 +12,9 @@ cargo run -p spyder-gui
 # open http://127.0.0.1:7700
 ```
 
-If `web/dist` is missing, the server still starts but only serves the API (see curl examples below).
+If `web/dist` is missing, the server still starts but only serves the API.
+
+On Linux: `sudo apt install libudev-dev pkg-config` for serial backends.
 
 ## Development (hot reload)
 
@@ -31,19 +35,9 @@ cd web && npm run dev
 
 | Tab | What it does |
 |-----|----------------|
-| **Design** | Rect-4 preset, drag/edit anchors, save/load venue TOML |
-| **Simulate** | Line trajectory play, workspace overlay, IK/tension readout |
-| **Run** | Mock backend connect, play line, E-stop (stepper/ODrive planned) |
-
-### MVP limitations
-
-| Feature | Status |
-|---------|--------|
-| Mock motor playback | Shipped |
-| Stepper / ODrive / multiboard in GUI | CLI only; GUI rejects non-`mock` |
-| Platform mode toggle in Design | CLI/TOML; UI uses point-mass preset |
-| Cable model picker (pulley/sag) | API supports; UI not wired |
-| Field-cal / calibration export | CLI only |
+| **Design** | Rect/polygon presets, platform toggle, attachments, cable model, per-anchor pulley, home pose, field-cal, TOML |
+| **Simulate** | Pose scrubber, waypoint editor, IK/FK/Jacobian/feasible panels, workspace overlay, Plotly export |
+| **Run** | Mock / stepper TCP / multiboard connect, play line, E-stop, live 3D feedback |
 
 ## HTTP API
 
@@ -52,51 +46,49 @@ Base URL: `http://127.0.0.1:7700`
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness + version |
+| GET | `/venue` | Current venue + classify |
 | POST | `/venue/load` | Parse TOML into server state |
 | POST | `/venue/from_preset` | Rect or polygon preset |
-| POST | `/venue/set_anchors` | Replace anchor list |
+| POST | `/venue/set_anchors` | Replace anchors (rich `AnchorDto`) |
+| POST | `/venue/home` | Set home pose |
+| POST | `/venue/set_model` | Cable model + params |
 | GET | `/venue/toml` | Export current venue |
-| POST | `/ik`, `/fk`, `/jacobian`, `/feasible` | Kinematics |
+| POST | `/ik`, `/fk`, `/jacobian`, `/feasible` | Kinematics / analysis |
 | POST | `/workspace` | Wrench-feasible samples |
-| POST | `/traj/line` | Cartesian line + IK lengths |
-| POST | `/scene/snapshot` | 3D scene JSON |
-| POST | `/run/connect` | Connect mock backend |
+| POST | `/traj/line`, `/traj/waypoints` | Cartesian trajectories |
+| POST | `/scene/snapshot`, `/scene/export` | 3D scene JSON / Plotly HTML |
+| GET/POST | `/calibration/*` | Field calibration |
+| POST | `/run/connect` | Connect motor backend |
 | POST | `/run/play_line` | Play trajectory |
 | POST | `/run/estop` | Latch e-stop |
-
-Full route table: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md` §6.
 
 ### Smoke tests
 
 ```bash
 curl -s localhost:7700/health
+curl -s localhost:7700/venue
 curl -s -X POST localhost:7700/venue/from_preset \
   -H 'Content-Type: application/json' \
   -d '{"kind":"rect","width":10,"depth":6,"height":8,"point_mass":true}'
-curl -s -X POST localhost:7700/ik \
-  -H 'Content-Type: application/json' \
-  -d '{"xyz":[0,0,2]}'
 ```
 
 ## Testing
 
 ```bash
-# Rust API integration tests
 cargo test -p spyder-gui
-
-# Frontend unit tests (API client)
-cd web && npm test
+cd web && npm test && npm run build && npm run e2e
 ```
 
-Playwright E2E is planned but not yet in CI.
+Playwright E2E covers rect preset, pulley model, simulate play, and mock e-stop.
 
 ## Code map
 
 | Path | Role |
 |------|------|
-| `crates/spyder-gui/` | Axum server, DTOs, service layer |
+| `crates/spyder-gui/` | Axum server, DTOs, calibration + run services |
+| `web/src/hooks/useSceneSnapshot.ts` | Debounced shared scene snapshot |
 | `web/src/pages/` | Design, Simulate, Run tabs |
-| `web/src/scene/RobotScene.tsx` | R3F viewport (Z-up) |
+| `web/src/scene/RobotScene.tsx` | R3F viewport (Z-up, model-aware cables) |
 | `web/src/api/client.ts` | Fetch wrappers |
 
 See [web/README.md](../web/README.md) for frontend details.

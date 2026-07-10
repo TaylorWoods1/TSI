@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as api from "./api/client";
-import { AppProvider } from "./context";
+import { AppProvider, useApp } from "./context";
 import DesignPage from "./pages/DesignPage";
 import SimulatePage from "./pages/SimulatePage";
 import RunPage from "./pages/RunPage";
@@ -11,6 +11,7 @@ function Shell() {
   const [tab, setTab] = useState<Tab>("design");
   const [version, setVersion] = useState("…");
   const [estop, setEstop] = useState(false);
+  const { venue, classify, runBackend, fkResidual, sceneLoading } = useApp();
 
   useEffect(() => {
     api.health().then((h) => setVersion(h.version)).catch(() => setVersion("offline"));
@@ -44,8 +45,12 @@ function Shell() {
       </main>
       <footer className="status-bar">
         <span className="ok">API v{version}</span>
-        <span>127.0.0.1:7700</span>
-        {estop && <span className="danger">E-STOP ACTIVE</span>}
+        <span>model: {venue?.model ?? "—"}</span>
+        <span>classify: {classify}</span>
+        <span>backend: {runBackend ?? "—"}</span>
+        {fkResidual != null && <span>FK ε: {fkResidual.toExponential(2)}</span>}
+        {sceneLoading && <span>scene…</span>}
+        {estop && <span className="danger estop-pulse">E-STOP ACTIVE</span>}
       </footer>
     </div>
   );

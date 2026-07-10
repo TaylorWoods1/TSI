@@ -21,8 +21,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type Vec3 = { x: number; y: number; z: number };
 
+export type Anchor = Vec3 & {
+  pulley_axis?: Vec3 | null;
+  pulley_radius?: number;
+  pulley_winch_exit?: Vec3 | null;
+  pulley_runout_m?: number;
+};
+
 export type Venue = {
-  anchors: Vec3[];
+  anchors: Anchor[];
   attachments: Vec3[];
   point_mass: boolean;
   model: string;
@@ -72,6 +79,10 @@ export async function health() {
   return request<{ ok: boolean; version: string }>("/health");
 }
 
+export async function getVenue() {
+  return request<VenueResponse>("/venue");
+}
+
 export async function fromPreset(body: object) {
   return request<VenueResponse>("/venue/from_preset", {
     method: "POST",
@@ -85,6 +96,14 @@ export async function setAnchors(body: object) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+export async function setHome(home: [number, number, number]) {
+  return request<VenueResponse>("/venue/home", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ home }),
   });
 }
 
@@ -128,7 +147,15 @@ export async function ik(
   });
 }
 
-export async function fk(lengths: number[], seed: [number, number, number]) {
+export async function fk(
+  lengths: number[],
+  seed: [number, number, number],
+  options?: {
+    orientation_rv?: [number, number, number];
+    tensions?: number[];
+    allow_underconstrained?: boolean;
+  },
+) {
   return request<{
     xyz: [number, number, number];
     orientation_rv: [number, number, number];
@@ -137,7 +164,29 @@ export async function fk(lengths: number[], seed: [number, number, number]) {
   }>("/fk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lengths, seed }),
+    body: JSON.stringify({ lengths, seed, ...options }),
+  });
+}
+
+export async function jacobian(
+  xyz: [number, number, number],
+  orientation_rv?: [number, number, number],
+) {
+  return request<{ rows: number[][]; cols: number }>("/jacobian", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ xyz, orientation_rv }),
+  });
+}
+
+export async function feasible(
+  xyz: [number, number, number],
+  opts?: { mg?: number; f_min?: number; f_max?: number },
+) {
+  return request<{ ok: boolean }>("/feasible", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ xyz, ...opts }),
   });
 }
 
@@ -148,6 +197,17 @@ export async function trajLine(body: object) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function trajWaypoints(waypoints: [number, number, number][]) {
+  return request<{ waypoints: [number, number, number][]; lengths: number[][] }>(
+    "/traj/waypoints",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waypoints }),
     },
   );
 }
@@ -163,19 +223,35 @@ export async function workspace(body: object) {
   });
 }
 
-export async function sceneSnapshot(xyz: [number, number, number]) {
+export async function sceneSnapshot(
+  xyz: [number, number, number],
+  orientation_rv?: [number, number, number],
+) {
   return request<SceneSnapshot>("/scene/snapshot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xyz }),
+    body: JSON.stringify({ xyz, orientation_rv }),
   });
 }
 
-export async function runConnect(backend: string) {
+export async function sceneExport(body: object) {
+  return request<{ html: string }>("/scene/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function runConnect(body: {
+  backend: string;
+  device?: string;
+  baud?: number;
+  axis_map?: object;
+}) {
   return request<{ ok: boolean; axes: number }>("/run/connect", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ backend }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -213,5 +289,59 @@ export async function runStatus() {
     estopped: boolean;
     steps?: number[];
     pose?: [number, number, number];
+    safety?: {
+      min: [number, number, number];
+      max: [number, number, number];
+      max_speed_mps: number;
+    };
   }>("/run/status");
+}
+
+export type Calibration = {
+  home: [number, number, number];
+  home_lengths_m: number[];
+  drum_radius_m: number;
+  steps_per_rev: number;
+  anchors_m?: [number, number, number][] | null;
+  saved_at: string;
+};
+
+export async function getCalibration() {
+  return request<Calibration>("/calibration");
+}
+
+export async function captureCalibration(body: {
+  home?: [number, number, number];
+  drum_radius_m: number;
+  steps_per_rev: number;
+}) {
+  return request<Calibration>("/calibration/capture", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setCalibrationAnchor(index: number, exit: [number, number, number]) {
+  return request<Calibration>("/calibration/anchor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index, exit }),
+  });
+}
+
+export async function applyCalibration() {
+  return request<VenueResponse>("/calibration/apply", { method: "POST" });
+}
+
+export async function getCalibrationJson() {
+  return request<{ json: string }>("/calibration/json");
+}
+
+export async function loadCalibration(json: string) {
+  return request<Calibration>("/calibration/load", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ json }),
+  });
 }

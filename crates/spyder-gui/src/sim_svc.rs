@@ -1,16 +1,18 @@
 //! Simulation service helpers (workspace, trajectory, scene).
 
-use nalgebra::DVector;
-use spyder_core::{Pose, Robot, Vec3};
+use nalgebra::{DVector, UnitQuaternion, Vector3};
+use spyder_core::{FkOptions, Pose, Robot, Vec3};
 use spyder_sim::{
-    line_waypoints, sample_wrench_feasible, trajectory_lengths, SampleBox, SceneSnapshot,
-    WorkspaceReport,
+    line_waypoints, sample_wrench_feasible, trajectory_lengths, SampleBox, SceneAnimation,
+    SceneSnapshot, WorkspaceReport, write_scene_animation_html, write_scene_html,
 };
 
 use crate::dto::{
     FeasibleRequest, FeasibleResponse, FkRequest, FkResponse, IkRequest, IkResponse,
-    JacobianRequest, JacobianResponse, SceneSnapshotRequest, SceneSnapshotResponse,
-    TrajLineRequest, TrajLineResponse, WorkspaceRequest, WorkspaceResponse, WorkspaceSampleDto,
+    JacobianRequest, JacobianResponse, SceneExportRequest, SceneExportResponse,
+    SceneSnapshotRequest, SceneSnapshotResponse, TrajLineRequest, TrajLineResponse,
+    TrajWaypointsRequest, TrajWaypointsResponse, WorkspaceRequest, WorkspaceResponse,
+    WorkspaceSampleDto,
 };
 use crate::state::{apply_cable_model, cable_model_params, CableModelParams};
 
@@ -56,25 +58,67 @@ pub fn ik(robot: &Robot, req: &IkRequest) -> Result<IkResponse, String> {
 
 /// Forward kinematics from lengths.
 pub fn fk(robot: &Robot, req: &FkRequest) -> Result<FkResponse, String> {
-    let seed = Vec3::new(req.seed[0], req.seed[1], req.seed[2]);
-    let result = robot.fk(&req.lengths, seed).map_err(|e| e.to_string())?;
-    let rv = result.orientation.scaled_axis();
+    let seed_pos = Vec3::new(req.seed[0], req.seed[1], req.seed[2]);
+    let rv = req.orientation_rv.unwrap_or([0.0, 0.0, 0.0]);
+    let orient = UnitQuaternion::from_scaled_axis(Vector3::new(rv[0], rv[1], rv[2]));
+    let seed = Pose {
+        position: seed_pos,
+        orientation: orient,
+    };
+    let mut opts = if req.allow_underconstrained {
+        FkOptions::permissive()
+    } else {
+        FkOptions::default()
+    };
+    if let Some(t) = &req.tensions {
+        opts.tensions = Some(t.clone());
+    }
+    let result = robot
+        .fk_with_options(&req.lengths, &seed, &opts)
+        .map_err(|e| e.to_string())?;
+    let out_rv = result.orientation.scaled_axis();
     Ok(FkResponse {
         xyz: [result.position.x, result.position.y, result.position.z],
-        orientation_rv: [rv.x, rv.y, rv.z],
+        orientation_rv: [out_rv.x, out_rv.y, out_rv.z],
         method: format!("{:?}", result.method),
         residual: result.residual,
     })
 }
 
+fn pose_from_request(req_xyz: [f64; 3], orientation_rv: Option<[f64; 3]>) -> Pose {
+    let position = Vec3::new(req_xyz[0], req_xyz[1], req_xyz[2]);
+    if let Some(rv) = orientation_rv {
+        Pose {
+            position,
+            orientation: UnitQuaternion::from_scaled_axis(Vector3::new(rv[0], rv[1], rv[2])),
+        }
+    } else {
+        Pose::from_position(position)
+    }
+}
+
 /// Length Jacobian at a pose.
 pub fn jacobian(robot: &Robot, req: &JacobianRequest) -> Result<JacobianResponse, String> {
-    let pose = Pose::from_position(Vec3::new(req.xyz[0], req.xyz[1], req.xyz[2]));
-    let j = robot.length_jacobian(&pose).map_err(|e| e.to_string())?;
-    let rows: Vec<[f64; 3]> = (0..j.nrows())
-        .map(|i| [j[(i, 0)], j[(i, 1)], j[(i, 2)]])
-        .collect();
-    Ok(JacobianResponse { rows })
+    let pose = pose_from_request(req.xyz, req.orientation_rv);
+    if robot.point_mass {
+        let j = robot.length_jacobian(&pose).map_err(|e| e.to_string())?;
+        let rows: Vec<Vec<f64>> = (0..j.nrows())
+            .map(|i| (0..j.ncols()).map(|c| j[(i, c)]).collect())
+            .collect();
+        Ok(JacobianResponse {
+            cols: j.ncols(),
+            rows,
+        })
+    } else {
+        let j = robot.length_jacobian_6(&pose).map_err(|e| e.to_string())?;
+        let rows: Vec<Vec<f64>> = (0..j.nrows())
+            .map(|i| (0..j.ncols()).map(|c| j[(i, c)]).collect())
+            .collect();
+        Ok(JacobianResponse {
+            cols: j.ncols(),
+            rows,
+        })
+    }
 }
 
 /// Wrench feasibility check.
@@ -132,7 +176,31 @@ pub fn traj_line(robot: &Robot, req: &TrajLineRequest) -> Result<TrajLineRespons
     let start = Vec3::new(req.start[0], req.start[1], req.start[2]);
     let end = Vec3::new(req.end[0], req.end[1], req.end[2]);
     let waypoints = line_waypoints(start, end, req.segments);
-    let lengths = trajectory_lengths(robot, &waypoints).map_err(|e| e.to_string())?;
+    traj_from_waypoints(robot, &waypoints)
+}
+
+/// IK lengths for an arbitrary waypoint list.
+pub fn traj_waypoints(
+    robot: &Robot,
+    req: &TrajWaypointsRequest,
+) -> Result<TrajWaypointsResponse, String> {
+    if req.waypoints.len() < 2 {
+        return Err("need at least 2 waypoints".into());
+    }
+    let waypoints: Vec<Vec3> = req
+        .waypoints
+        .iter()
+        .map(|w| Vec3::new(w[0], w[1], w[2]))
+        .collect();
+    let resp = traj_from_waypoints(robot, &waypoints)?;
+    Ok(TrajWaypointsResponse {
+        waypoints: resp.waypoints,
+        lengths: resp.lengths,
+    })
+}
+
+fn traj_from_waypoints(robot: &Robot, waypoints: &[Vec3]) -> Result<TrajLineResponse, String> {
+    let lengths = trajectory_lengths(robot, waypoints).map_err(|e| e.to_string())?;
     Ok(TrajLineResponse {
         waypoints: waypoints
             .iter()
@@ -147,7 +215,7 @@ pub fn scene_snapshot(
     robot: &Robot,
     req: &SceneSnapshotRequest,
 ) -> Result<SceneSnapshotResponse, String> {
-    let pose = Pose::from_position(Vec3::new(req.xyz[0], req.xyz[1], req.xyz[2]));
+    let pose = pose_from_request(req.xyz, req.orientation_rv);
     let snap = SceneSnapshot::from_robot(robot, &pose).map_err(|e| e.to_string())?;
     Ok(SceneSnapshotResponse {
         anchors: snap.anchors,
@@ -158,4 +226,40 @@ pub fn scene_snapshot(
         unit_pulls: snap.unit_pulls,
         model: snap.model,
     })
+}
+
+/// Export Plotly HTML for current pose (or animation).
+pub fn scene_export(robot: &Robot, req: &SceneExportRequest) -> Result<SceneExportResponse, String> {
+    let pose = pose_from_request(req.xyz, req.orientation_rv);
+    let path = std::env::temp_dir().join(format!("spyder_export_{}.html", std::process::id()));
+    if req.format == "html_anim" {
+        let waypoints: Vec<Vec3> = if let Some(wps) = &req.waypoints {
+            wps.iter()
+                .map(|w| Vec3::new(w[0], w[1], w[2]))
+                .collect()
+        } else {
+            line_waypoints(pose.position, pose.position, 1)
+        };
+        let mut frames = Vec::new();
+        for wp in &waypoints {
+            let p = Pose {
+                position: *wp,
+                orientation: pose.orientation,
+            };
+            frames.push(SceneSnapshot::from_robot(robot, &p).map_err(|e| e.to_string())?);
+        }
+        let anim = SceneAnimation {
+            anchors: frames[0].anchors.clone(),
+            frames,
+            workspace: None,
+        };
+        write_scene_animation_html(&anim, &path, "Spyder scene")
+            .map_err(|e| e.to_string())?;
+    } else {
+        let snap = SceneSnapshot::from_robot(robot, &pose).map_err(|e| e.to_string())?;
+        write_scene_html(&snap, &path, "Spyder scene").map_err(|e| e.to_string())?;
+    }
+    let html = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&path);
+    Ok(SceneExportResponse { html })
 }

@@ -2,10 +2,10 @@
 
 use spyder_core::{Anchor, PlatformAttachment, Preset, Robot, Vec3};
 
-use crate::dto::{FromPresetRequest, SetAnchorsRequest, SetCableModelRequest, VenueResponse};
+use crate::dto::{FromPresetRequest, SetAnchorsRequest, SetCableModelRequest, SetHomeRequest, VenueResponse};
 use crate::state::{
-    apply_cable_model, cable_model_params, classify_robot, venue_from_state, AppState,
-    CableModelParams,
+    anchor_from_dto, apply_cable_model, cable_model_params, classify_robot, venue_from_state,
+    AppState, CableModelParams,
 };
 use crate::toml_venue::{emit_venue_toml, parse_venue_toml};
 
@@ -83,9 +83,8 @@ pub async fn set_anchors(
     if req.anchors.len() < 3 {
         return Err("need at least 3 anchors".into());
     }
-    let prev = state.robot.lock().await.clone();
     let params = model_params_from_request(
-        &cable_model_params(&prev),
+        &cable_model_params(&state.robot.lock().await),
         req.model.as_deref(),
         req.pulley_radius,
         req.sag_mu,
@@ -94,19 +93,7 @@ pub async fn set_anchors(
     let anchors: Vec<Anchor> = req
         .anchors
         .iter()
-        .enumerate()
-        .map(|(i, a)| {
-            let v: Vec3 = a.clone().into();
-            if let Some(prev_a) = prev.anchors.get(i) {
-                let mut anchor = prev_a.clone();
-                anchor.exit = v;
-                anchor
-            } else if params.model == "pulley" {
-                Anchor::with_z_pulley(v, params.pulley_radius)
-            } else {
-                Anchor::point(v)
-            }
-        })
+        .map(|a| anchor_from_dto(a, &params))
         .collect();
     let attachments = req.attachments.as_ref().map(|atts| {
         atts.iter()
@@ -145,15 +132,28 @@ pub async fn set_cable_model(
     venue_response(state).await
 }
 
+/// Set home pose.
+pub async fn set_home(state: &AppState, req: &SetHomeRequest) -> Result<VenueResponse, String> {
+    {
+        let mut h = state.home.lock().await;
+        *h = Vec3::new(req.home[0], req.home[1], req.home[2]);
+    }
+    venue_response(state).await
+}
+
+/// Current venue + classify.
+pub async fn get_venue(state: &AppState) -> Result<VenueResponse, String> {
+    venue_response(state).await
+}
+
 /// Serialize current venue to TOML.
 pub async fn venue_toml(state: &AppState) -> Result<String, String> {
     let robot = state.robot.lock().await;
     let home = *state.home.lock().await;
     let params = cable_model_params(&robot);
-    let anchors: Vec<Vec3> = robot.anchors.iter().map(|a| a.exit).collect();
     let attachments: Vec<Vec3> = robot.attachments.iter().map(|a| a.body_point).collect();
     emit_venue_toml(
-        &anchors,
+        &robot.anchors,
         &attachments,
         robot.point_mass,
         home,

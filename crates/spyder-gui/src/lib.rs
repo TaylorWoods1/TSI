@@ -17,6 +17,8 @@
 pub mod api;
 /// Venue mutation helpers (presets, anchors, load/save).
 pub mod design;
+/// Field calibration wrappers.
+pub mod cal_svc;
 /// JSON request/response types for the REST API.
 pub mod dto;
 /// Mock motor run session and playback.

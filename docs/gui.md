@@ -58,7 +58,7 @@ Base URL: `http://127.0.0.1:7700`
 | POST | `/workspace` | Wrench-feasible samples |
 | POST | `/traj/line`, `/traj/waypoints` | Cartesian trajectories |
 | POST | `/scene/snapshot`, `/scene/export` | 3D scene JSON / Plotly HTML |
-| GET/POST | `/calibration/*` | Field calibration |
+| GET/POST | `/calibration/*` | Field calibration (`GET /calibration/venue_toml` = export venue from cal) |
 | POST | `/run/connect` | Connect motor backend (serial/TCP/odrive/multiboard) |
 | POST | `/run/play_line`, `/run/play_waypoints` | Play trajectory |
 | POST | `/run/estop` | Latch e-stop |
@@ -85,7 +85,7 @@ Playwright E2E covers rect preset, pulley model, simulate play, motor mapping, m
 ## See also
 
 - [gui-configurator.md](gui-configurator.md) — full feature guide
-- [gui-tauri.md](gui-tauri.md) — planned desktop shell (stub)
+- [gui-tauri.md](gui-tauri.md) — desktop shell (`apps/spyder-tauri`)
 
 ## Code map
 

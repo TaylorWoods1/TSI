@@ -70,9 +70,13 @@ cargo run -p spyder-gui
 # Dev: API + Vite hot reload
 cargo run -p spyder-gui          # terminal 1
 cd web && npm run dev            # terminal 2 → http://127.0.0.1:5173
+
+# Desktop shell (Tauri)
+cargo build -p spyder-gui && cd web && npm run build && cd ../apps/spyder-tauri
+npm install && npm run tauri dev
 ```
 
-**MVP note:** GUI Run tab supports **mock** backend only; use CLI for stepper/ODrive.
+See [docs/gui-configurator.md](docs/gui-configurator.md) and [docs/gui-tauri.md](docs/gui-tauri.md).
 
 ## Testing
 

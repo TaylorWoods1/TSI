@@ -70,8 +70,13 @@ Local HTTP service on `127.0.0.1:7700`:
 
 - JSON API wrapping core/sim/runtime (`crates/spyder-gui/src/api.rs`)
 - Serves built SPA from `web/dist` (fallback to `index.html`)
+- Hardware backends via dedicated thread (`hw_thread.rs`) for serial/TCP safety
 
-State: one `Robot` + optional mock run session (single-operator local).
+State: one `Robot`, optional run session (mock / stepper / ODrive / multiboard), calibration + motor mapping.
+
+### `apps/spyder-tauri/`
+
+Desktop shell: spawns `spyder-gui`, waits for `:7700`, opens a native webview. See [gui-tauri.md](../gui-tauri.md).
 
 ### `web/`
 
@@ -80,10 +85,12 @@ React Three Fiber viewport + inspector panels. Talks to the API via `src/api/cli
 ## Data flow (GUI loop)
 
 ```
-Design tab  → POST /venue/*     → Robot in AppState
-Simulate    → POST /ik, /workspace, /traj/line
-Run tab     → POST /run/*       → Player + MockBackend (MVP)
+Design tab  → POST /venue/*, /calibration/*  → Robot + calibration in AppState
+Simulate    → POST /ik, /workspace, /traj/*  → analysis + scene snapshot
+Run tab     → POST /run/*                    → Player + hardware backend (thread proxy)
 ```
+
+Optional desktop: `apps/spyder-tauri` spawns `spyder-gui` and loads `http://127.0.0.1:7700`.
 
 ## Python
 

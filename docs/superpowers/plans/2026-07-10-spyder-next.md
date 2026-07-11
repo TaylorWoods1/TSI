@@ -1,31 +1,29 @@
 # Spyder — What's Next
 
-**Date:** 2026-07-10 (updated)  
+**Date:** 2026-07-11  
 **Spec:** `docs/superpowers/specs/2026-07-10-spyder-ik-design.md`
 
-## Shipped
+## Shipped (on `main`)
 
 | Area | Status |
 |------|--------|
-| Phase 1–4 core / sim / runtime / harden | Done |
-| Animated scene + multi-board + realtime | Done |
-| Platform 6DOF FK + field-cal | Done |
-| **GUI MVP** (Axum + React, mock Run) | Done — see [docs/gui.md](../../gui.md) |
-| Expanded test suite (Rust, Python, Vitest) | Done |
+| Core / sim / runtime / CLI | Done |
+| Model-aware IK/FK (ideal / pulley / sag) | Done |
+| Platform 6-DOF FK + field calibration | Done |
+| **Full GUI configurator** (Design / Simulate / Run) | Done — [docs/gui-configurator.md](../../gui-configurator.md) |
+| Hardware in GUI (stepper serial+TCP, ODrive, multiboard) | Done |
+| Motor mapping, calibration export, play waypoints | Done |
+| Playwright E2E + CI (Rust, web, Python) | Done |
+| **Tauri desktop shell** (scaffold) | Done — [docs/gui-tauri.md](../../gui-tauri.md) |
 
-## Next (planned)
+## Next (optional polish)
 
 | Priority | Item |
 |----------|------|
-| GUI-4 | Playwright E2E, polish, optional Tauri shell |
-| GUI Run | Stepper/ODrive backends in GUI (CLI already supports) |
-| GUI Design | Platform mode, cable model picker, calibration export |
-| Docs | Keep `docs/` index current as features land |
+| Desktop | Bundle `spyder-gui` binary in Tauri release; tray icon; single-instance lock |
+| UX | TransformControls rotation gizmo; waypoint drag-reorder |
+| Field | E2E against live `spyder-stepper-sim` TCP in CI (optional) |
+| Ops | GitHub rename `TSI` → `spyder` (admin UI), if desired |
 
 Specs: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md`  
-Plan: `docs/superpowers/plans/2026-07-10-spyder-gui.md`
-
-## Remaining ops
-
-1. GitHub rename `TSI` → `spyder` (admin UI), if desired  
-2. Optional: commit generated `configs/axis_map_dual_odrive.json` or document generator-only workflow (done in [docs/cli.md](../../cli.md))
+Archive: `docs/superpowers/plans/2026-07-10-spyder-full-configurator.md` (completed)

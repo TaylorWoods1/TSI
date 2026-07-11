@@ -8,6 +8,8 @@ Index for the Spyder cable-robot (spider-cam) project.
 |-----|----------|----------|
 | [../README.md](../README.md) | Everyone | Quick starts: Rust CLI, Python, GUI, hardware |
 | [gui.md](gui.md) | GUI users & contributors | Local GUI, dev workflow, API smoke tests |
+| [gui-configurator.md](gui-configurator.md) | GUI users | Full Design / Simulate / Run guide |
+| [gui-tauri.md](gui-tauri.md) | Desktop users | Tauri shell (spawn spyder-gui) |
 | [hardware.md](hardware.md) | Operators | Motor backends, stepper protocol, calibration |
 | [cli.md](cli.md) | CLI users | `spyder` subcommands and examples |
 | [config-schema.md](config-schema.md) | Config authors | Venue TOML fields and examples |

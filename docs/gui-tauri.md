@@ -1,37 +1,67 @@
-# Spyder desktop shell (Tauri) — planned
+# Spyder desktop shell (Tauri)
 
-The web GUI (`web/` + `spyder-gui` on port 7700) is the primary interface today. A future **Tauri** wrapper would package the same React SPA as a native desktop app with bundled backend startup.
+Native desktop wrapper around the same **Design → Simulate → Run** web GUI. The shell spawns `spyder-gui` (Axum API + static `web/dist`) and opens a webview to `http://127.0.0.1:7700`.
 
-## Planned layout
+## Prerequisites
+
+- Rust **1.85+** (Tauri 2 dependencies; workspace default is 1.83 for `spyder-gui` only)
+- Node.js 20+
+- Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libudev-dev`, `pkg-config`
+- Built backend: `cargo build -p spyder-gui`
+- Built UI: `cd web && npm ci && npm run build`
+
+## Quick start
+
+```bash
+# 1. Build backend + web assets (once)
+cargo build -p spyder-gui
+cd web && npm ci && npm run build && cd ..
+
+# 2. Install Tauri CLI (once)
+cd apps/spyder-tauri && npm install
+
+# 3. Run desktop app (spawns spyder-gui automatically)
+npm run tauri dev
+```
+
+Override backend binary path:
+
+```bash
+export SPYDER_GUI_BIN=/path/to/spyder-gui
+npm run tauri dev
+```
+
+## Layout
 
 ```
 apps/spyder-tauri/
-  src-tauri/     # Rust shell: spawn spyder-gui, open webview
-  package.json   # Vite dev proxy to :7700
+  package.json          # @tauri-apps/cli scripts
+  src-tauri/
+    Cargo.toml          # Rust shell
+    tauri.conf.json     # window + remote URL
+    src/lib.rs          # spawn spyder-gui, wait for :7700
+    capabilities/       # remote localhost access
 ```
 
-## Responsibilities (not yet implemented)
+## How it works
 
-1. **Process management** — start `spyder-gui` as a child process; restart on crash.
-2. **Single instance** — one window per machine; optional tray icon.
-3. **Serial permissions** — macOS/Linux udev hints; Windows COM port picker.
-4. **Deep links** — `spyder://venue/load?path=...` for venue TOML files.
-5. **Offline assets** — serve `web/dist` from Tauri instead of separate browser tab.
-
-## Dev workflow (target)
-
-```bash
-# Terminal 1 — API + static (unchanged)
-cargo run -p spyder-gui
-
-# Terminal 2 — Tauri dev (future)
-cd apps/spyder-tauri && npm run tauri dev
-```
+1. On launch, the shell resolves `spyder-gui` (`SPYDER_GUI_BIN`, then `target/debug|release/spyder-gui`, then `$PATH`).
+2. Polls TCP port **7700** until the API is up.
+3. Opens a Tauri window loading `http://127.0.0.1:7700`.
+4. On exit, kills the child `spyder-gui` process.
 
 ## API contract
 
-No Tauri-specific API is required. The desktop shell talks to the same JSON routes documented in [gui-configurator.md](./gui-configurator.md).
+No Tauri-specific API. The webview uses the same JSON routes as the browser — see [gui-configurator.md](./gui-configurator.md).
 
-## Status
+## Not yet implemented
 
-**Stub only.** Track implementation in a dedicated issue when desktop distribution is prioritized.
+- Bundling `spyder-gui` inside the `.deb` / `.msi` installer
+- System tray icon
+- Single-instance lock
+- `spyder://` deep links for venue TOML files
+
+## See also
+
+- [gui.md](./gui.md) — browser workflow
+- [gui-configurator.md](./gui-configurator.md) — feature reference

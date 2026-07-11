@@ -10,8 +10,8 @@ use axum::{
     Json, Router,
 };
 use crate::cal_svc::{
-    apply_calibration, calibration_json, capture_calibration, get_calibration, load_calibration,
-    set_calibration_anchor,
+    apply_calibration, calibration_json, calibration_venue_toml, capture_calibration,
+    get_calibration, load_calibration, set_calibration_anchor,
 };
 use crate::design::{from_preset, get_venue, load_venue, set_anchors, set_cable_model, set_home, venue_toml};
 use crate::dto::*;
@@ -140,6 +140,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/calibration/anchor", post(calibration_anchor))
         .route("/calibration/apply", post(calibration_apply))
         .route("/calibration/json", get(calibration_json_get))
+        .route("/calibration/venue_toml", get(calibration_venue_toml_get))
         .route("/calibration/load", post(calibration_load))
         .route("/run/connect", post(run_connect))
         .route("/run/disconnect", post(run_disconnect))
@@ -318,6 +319,14 @@ async fn calibration_json_get(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<CalibrationJsonResponse>, ApiError> {
     Ok(Json(calibration_json(&state).await?))
+}
+
+async fn calibration_venue_toml_get(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<TomlResponse>, ApiError> {
+    Ok(Json(TomlResponse {
+        toml: calibration_venue_toml(&state).await?,
+    }))
 }
 
 async fn calibration_load(

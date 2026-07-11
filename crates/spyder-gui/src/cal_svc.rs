@@ -130,6 +130,20 @@ pub async fn load_calibration(
     Ok(calibration_to_dto(&cal))
 }
 
+/// Export venue TOML merged from captured calibration (measured anchors + home).
+pub async fn calibration_venue_toml(state: &AppState) -> Result<String, String> {
+    let cal = state
+        .calibration
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "no calibration captured".to_string())?;
+    let robot = state.robot.lock().await;
+    let point_mass = robot.point_mass;
+    drop(robot);
+    cal.to_venue_toml(point_mass).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +164,24 @@ mod tests {
         assert_eq!(dto.home_lengths_m.len(), 4);
         let applied = apply_calibration(&state).await.unwrap();
         assert_eq!(applied.venue.anchors.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn venue_toml_export_requires_capture() {
+        let state = AppState::new_rect();
+        assert!(calibration_venue_toml(&state).await.is_err());
+        capture_calibration(
+            &state,
+            &CalibrationCaptureRequest {
+                home: None,
+                drum_radius_m: 0.05,
+                steps_per_rev: 200.0,
+            },
+        )
+        .await
+        .unwrap();
+        let toml = calibration_venue_toml(&state).await.unwrap();
+        assert!(toml.contains("[[anchors]]"));
+        assert!(toml.contains("[home]"));
     }
 }

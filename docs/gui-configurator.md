@@ -34,7 +34,7 @@ Configure the venue without editing TOML by hand.
 | **Cable model** | Ideal, pulley (radius), sag (μ, EA) |
 | **Per-anchor pulley** | Radius override, axis preset (Z/X/Y), winch exit, runout |
 | **Home pose** | XYZ fields; “Set home from dolly” |
-| **Field calibration** | Capture at home, per-anchor measure, export/load JSON, apply to venue |
+| **Field calibration** | Capture at home, per-anchor measure, export JSON + **venue TOML**, load JSON, apply to venue |
 | **TOML** | Save / load full venue round-trip |
 
 ### TOML fields
@@ -128,7 +128,7 @@ Per-cable **drum radius** and **steps/rev** feed IK motor-command readouts (Simu
 | GET/POST | `/venue/motors` | Per-cable drum/steps mapping |
 | POST | `/traj/waypoints` | IK along waypoint list |
 | POST | `/scene/export` | Plotly HTML |
-| GET/POST | `/calibration/*` | Field-cal capture/apply |
+| GET/POST | `/calibration/*` | Field-cal capture/apply; `GET /calibration/venue_toml` exports merged venue |
 | POST | `/run/connect` | mock / stepper / odrive / multiboard |
 | POST | `/run/play_waypoints` | Play waypoint list on connected backend |
 

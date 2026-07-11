@@ -379,6 +379,10 @@ export async function getCalibrationJson() {
   return request<{ json: string }>("/calibration/json");
 }
 
+export async function getCalibrationVenueToml() {
+  return request<{ toml: string }>("/calibration/venue_toml");
+}
+
 export async function loadCalibration(json: string) {
   return request<Calibration>("/calibration/load", {
     method: "POST",

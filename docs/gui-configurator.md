@@ -136,7 +136,7 @@ Full table: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md`
 
 ## Desktop shell
 
-A Tauri desktop wrapper is available as a dev shell — see [gui-tauri.md](gui-tauri.md) for setup and usage.
+A Tauri desktop wrapper ships as an installable `.deb` (Linux) with bundled `spyder-gui` + web assets — see [gui-tauri.md](gui-tauri.md) for dev and release builds.
 
 ## Testing
 

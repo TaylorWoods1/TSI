@@ -6,5 +6,27 @@
   "remote": {
     "urls": ["http://127.0.0.1:7700"]
   },
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/spyder-gui",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/spyder-gui",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  ]
 }

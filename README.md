@@ -71,9 +71,9 @@ cargo run -p spyder-gui
 cargo run -p spyder-gui          # terminal 1
 cd web && npm run dev            # terminal 2 → http://127.0.0.1:5173
 
-# Desktop shell (Tauri)
-cargo build -p spyder-gui && cd web && npm run build && cd ../apps/spyder-tauri
-npm install && npm run tauri dev
+# Desktop shell (Tauri) — bundled .deb with spyder-gui sidecar
+cd apps/spyder-tauri && npm install && npm run build
+# or dev: npm run dev
 ```
 
 See [docs/gui-configurator.md](docs/gui-configurator.md) and [docs/gui-tauri.md](docs/gui-tauri.md).

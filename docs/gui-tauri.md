@@ -1,65 +1,88 @@
 # Spyder desktop shell (Tauri)
 
-Native desktop wrapper around the same **Design → Simulate → Run** web GUI. The shell spawns `spyder-gui` (Axum API + static `web/dist`) and opens a webview to `http://127.0.0.1:7700`.
+Native desktop wrapper around the same **Design → Simulate → Run** web GUI. The shell spawns a bundled `spyder-gui` sidecar (Axum API + static `web/dist`) and opens a webview to `http://127.0.0.1:7700`.
 
 ## Prerequisites
 
-- Rust **1.88** (pinned in repo root `rust-toolchain.toml`; shared by `spyder-gui` and Tauri shell)
+- Rust **1.88** (pinned in repo root `rust-toolchain.toml`)
 - Node.js 20+
-- Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libudev-dev`, `pkg-config`
-- Built backend: `cargo build -p spyder-gui`
-- Built UI: `cd web && npm ci && npm run build`
-
-## Quick start
+- Linux build deps:
 
 ```bash
-# 1. Build backend + web assets (once)
-cargo build -p spyder-gui
-cd web && npm ci && npm run build && cd ..
-
-# 2. Install Tauri CLI (once)
-cd apps/spyder-tauri && npm install
-
-# 3. Run desktop app (spawns spyder-gui automatically)
-npm run tauri dev
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libudev-dev libappindicator3-dev pkg-config
 ```
 
-Override backend binary path:
+## Quick start (development)
+
+```bash
+cd apps/spyder-tauri
+npm install
+npm run dev
+```
+
+`tauri dev` runs `scripts/prepare-sidecar.sh debug` first (builds `spyder-gui` + `web/dist`, stages the sidecar binary), then launches the desktop window.
+
+Override backend binary path (dev only):
 
 ```bash
 export SPYDER_GUI_BIN=/path/to/spyder-gui
-npm run tauri dev
+npm run dev
+```
+
+## Release build (Linux .deb)
+
+From the repo root or `apps/spyder-tauri`:
+
+```bash
+cd apps/spyder-tauri
+npm install
+npm run build          # .deb bundle
+# npm run build:all    # deb + rpm + appimage (appimage needs extra host tooling)
+```
+
+Installer output:
+
+```
+apps/spyder-tauri/src-tauri/target/release/bundle/deb/Spyder_0.1.0_amd64.deb
+```
+
+Install locally:
+
+```bash
+sudo dpkg -i apps/spyder-tauri/src-tauri/target/release/bundle/deb/Spyder_0.1.0_amd64.deb
+spyder-tauri
 ```
 
 ## Layout
 
 ```
 apps/spyder-tauri/
-  package.json          # @tauri-apps/cli scripts
+  package.json              # @tauri-apps/cli scripts
+  scripts/prepare-sidecar.sh  # build spyder-gui + web/dist, stage sidecar
   src-tauri/
-    Cargo.toml          # Rust shell
-    tauri.conf.json     # window + remote URL
-    src/lib.rs          # spawn spyder-gui, wait for :7700
-    capabilities/       # remote localhost access
+    Cargo.toml              # Rust shell + plugins
+    tauri.conf.json         # bundle config (sidecar + web/dist resources)
+    binaries/               # staged spyder-gui-<target-triple> (gitignored)
+    icons/                  # app icons
+    src/lib.rs              # sidecar spawn, single-instance, tray
+    capabilities/           # shell sidecar permissions
 ```
 
 ## How it works
 
-1. On launch, the shell resolves `spyder-gui` (`SPYDER_GUI_BIN`, then `target/debug|release/spyder-gui`, then `$PATH`).
-2. Polls TCP port **7700** until the API is up.
-3. Opens a Tauri window loading `http://127.0.0.1:7700`.
-4. On exit, kills the child `spyder-gui` process.
+1. **Single instance** — `tauri-plugin-single-instance` focuses the existing window if a second launch is attempted.
+2. **Sidecar** — `spyder-gui` is bundled via `externalBin` and spawned with `tauri-plugin-shell`. `SPYDER_WEB_DIST` points at bundled `web/dist` resources.
+3. **Port wait** — polls TCP **7700** until the API is up.
+4. **Tray** — system tray menu with **Quit**; graceful sidecar shutdown on exit.
+5. **Dev fallback** — if the sidecar is unavailable, falls back to `target/debug|release/spyder-gui` from the workspace.
 
 ## API contract
 
 No Tauri-specific API. The webview uses the same JSON routes as the browser — see [gui-configurator.md](./gui-configurator.md).
 
-## Not yet implemented
+## CI
 
-- Bundling `spyder-gui` inside the `.deb` / `.msi` installer
-- System tray icon
-- Single-instance lock
-- `spyder://` deep links for venue TOML files
+The `tauri` job in `.github/workflows/ci.yml` runs `cargo check`, builds the `.deb`, and uploads it as a CI artifact.
 
 ## See also
 

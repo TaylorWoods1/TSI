@@ -7,6 +7,9 @@ use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::EnvFilter;
 
 fn web_dist() -> PathBuf {
+    if let Ok(path) = std::env::var("SPYDER_WEB_DIST") {
+        return PathBuf::from(path);
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../web/dist")
 }
 

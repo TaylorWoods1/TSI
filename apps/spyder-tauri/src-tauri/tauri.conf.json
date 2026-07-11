@@ -4,13 +4,14 @@
   "version": "0.1.0",
   "identifier": "com.spyder.desktop",
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
+    "beforeDevCommand": "bash scripts/prepare-sidecar.sh debug",
+    "beforeBuildCommand": "bash scripts/prepare-sidecar.sh release",
     "frontendDist": "http://127.0.0.1:7700"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Spyder",
         "width": 1400,
         "height": 900,
@@ -22,7 +23,16 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all"
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/spyder-gui"],
+    "resources": ["../../../web/dist"]
   }
 }

@@ -26,7 +26,7 @@ pub fn write_csv(report: &WorkspaceReport, path: &Path) -> std::io::Result<()> {
 /// Write JSON report (pretty).
 pub fn write_json(report: &WorkspaceReport, path: &Path) -> std::io::Result<()> {
     let text = serde_json::to_string_pretty(report)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     fs::write(path, text)
 }
 

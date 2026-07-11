@@ -91,13 +91,13 @@ impl MotorBackend for ODriveBackend {
         if steps.len() != self.axes.len() {
             return Err(RuntimeError::Config("step vector length mismatch".into()));
         }
-        for i in 0..steps.len() {
+        for (i, &step) in steps.iter().enumerate() {
             let spr = self.axes[i].steps_per_rev;
             if spr <= 0.0 {
                 return Err(RuntimeError::Config("steps_per_rev must be > 0".into()));
             }
-            self.steps[i] += steps[i];
-            self.turns[i] += steps[i] as f64 / spr;
+            self.steps[i] += step;
+            self.turns[i] += step as f64 / spr;
             let axis = self.axes[i].axis;
             let turns = self.turns[i];
             let line = if let Some(vlim) = self.axes[i].velocity_lim {

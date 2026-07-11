@@ -16,7 +16,7 @@ pub fn cable_path_vertices(
     b: &Vec3,
     model: &CableModelKind,
     ctx: &CableContext,
-    default_pulley_radius: f64,
+    _default_pulley_radius: f64,
 ) -> Result<Vec<Vec3>> {
     let pts = match model {
         CableModelKind::Ideal => {

@@ -125,8 +125,8 @@ impl MotorBackend for MultiBoardBackend {
         for (i, board) in self.boards.iter_mut().enumerate() {
             board.move_steps(&board_steps[i], &board_delays[i])?;
         }
-        for i in 0..self.positions.len() {
-            self.positions[i] += steps[i];
+        for (i, step) in steps.iter().enumerate().take(self.positions.len()) {
+            self.positions[i] += step;
         }
         Ok(())
     }

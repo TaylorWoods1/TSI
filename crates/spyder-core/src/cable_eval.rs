@@ -14,7 +14,7 @@ pub fn cable_geometry_at(
     b: &Vec3,
     model: &CableModelKind,
     ctx: &CableContext,
-    default_pulley_radius: f64,
+    _default_pulley_radius: f64,
 ) -> Result<CableGeometry> {
     let g = match model {
         CableModelKind::Ideal => Ideal.geometry(&anchor.exit, b, ctx),

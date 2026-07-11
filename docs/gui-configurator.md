@@ -134,9 +134,9 @@ Per-cable **drum radius** and **steps/rev** feed IK motor-command readouts (Simu
 
 Full table: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md`
 
-## Desktop shell (planned)
+## Desktop shell
 
-See [gui-tauri.md](gui-tauri.md) for the future Tauri wrapper stub.
+A Tauri desktop wrapper is available as a dev shell — see [gui-tauri.md](gui-tauri.md) for setup and usage.
 
 ## Testing
 

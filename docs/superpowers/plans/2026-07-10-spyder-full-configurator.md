@@ -1,5 +1,7 @@
 # Spyder Full Configurator & Visualiser — Implementation Plan
 
+> **ARCHIVED** — completed on `main`; see [2026-07-10-spyder-next.md](./2026-07-10-spyder-next.md).
+>
 > **Status (2026-07-11):** **Completed** on `main` (`999b10f` and follow-ups). Checkboxes below are the historical task list. Current roadmap: [2026-07-10-spyder-next.md](./2026-07-10-spyder-next.md).
 >
 > **For agentic workers:** Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`. Work phase-by-phase; commit + push after each phase; open/update PR before claiming done.

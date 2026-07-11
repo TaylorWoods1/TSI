@@ -164,10 +164,8 @@ pub fn parse_venue_toml(text: &str) -> Result<(Robot, Vec3), String> {
                 }
                 continue;
             }
-            if cur_kind == "anchor" {
-                if k == "pulley_axis" {
-                    // skip — handled via [pulley_axis] section not supported; use axis_x keys below
-                }
+            if cur_kind == "anchor" && k == "pulley_axis" {
+                // skip — handled via [pulley_axis] section not supported; use axis_x keys below
             }
             if cur_kind == "anchor" {
                 if cur_pulley_axis.is_none() {
@@ -292,7 +290,7 @@ pub fn emit_venue_toml(
     model: &CableModelParams,
 ) -> Result<String, String> {
     let mut toml = String::new();
-    toml.push_str(&format!("point_mass = {}\n\n", point_mass));
+    toml.push_str(&format!("point_mass = {point_mass}\n\n"));
 
     for (i, a) in anchors.iter().enumerate() {
         toml.push_str("[[anchors]]\n");

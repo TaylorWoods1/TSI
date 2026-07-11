@@ -81,7 +81,7 @@ See [docs/gui-configurator.md](docs/gui-configurator.md) and [docs/gui-tauri.md]
 ## Testing
 
 ```bash
-cargo test --workspace     # Rust (107+ tests)
+cargo test --workspace     # Rust (131 tests)
 cargo test -p spyder-gui   # GUI API routes
 cd web && npm test         # Vitest
 cd python && pytest tests/ # Python bindings

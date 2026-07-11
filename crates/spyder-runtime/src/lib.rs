@@ -109,8 +109,8 @@ impl MotorBackend for MockBackend {
         if steps.len() != self.steps.len() {
             return Err(RuntimeError::Config("step vector length mismatch".into()));
         }
-        for i in 0..steps.len() {
-            self.steps[i] += steps[i];
+        for (i, &step) in steps.iter().enumerate() {
+            self.steps[i] += step;
             self.feedback[i] = self.steps[i];
         }
         self.log.push(steps.to_vec());
@@ -276,8 +276,8 @@ impl<'a, B: MotorBackend> Player<'a, B> {
         self.safety.check_lengths(target_lengths)?;
         let mut cmds = Vec::with_capacity(target_lengths.len());
         let mut steps = Vec::with_capacity(target_lengths.len());
-        for i in 0..target_lengths.len() {
-            let delta = target_lengths[i] - self.current_lengths[i];
+        for (i, &target) in target_lengths.iter().enumerate() {
+            let delta = target - self.current_lengths[i];
             let cmd = length_delta_to_command(&self.axes[i].winch, &self.axes[i].motor, delta);
             steps.push(cmd.steps);
             cmds.push(cmd);

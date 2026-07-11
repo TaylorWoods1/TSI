@@ -315,10 +315,9 @@ pub fn fk_point_mass_numeric_model(
             for i in 0..3 {
                 a_mat[(i, i)] += lambda;
             }
-            let d = nalgebra::linalg::SVD::new(a_mat, true, true)
+            nalgebra::linalg::SVD::new(a_mat, true, true)
                 .solve(&jtr, 1e-12)
-                .map_err(|_| SpyderError::SingularStructure)?;
-            d
+                .map_err(|_| SpyderError::SingularStructure)?
         };
 
         let candidate = p - delta;

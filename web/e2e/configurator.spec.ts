@@ -52,4 +52,58 @@ test.describe("Spyder configurator", () => {
       timeout: 10_000,
     });
   });
+
+  test("field calibration capture and export venue TOML", async ({ page }) => {
+    await page.locator("summary", { hasText: "Field calibration" }).click();
+    await page.getByRole("button", { name: "Capture calibration" }).click();
+
+    const calRes = await page.request.get("/calibration");
+    expect(calRes.ok()).toBeTruthy();
+    const cal = (await calRes.json()) as { home_lengths_m: number[] };
+    expect(cal.home_lengths_m).toHaveLength(4);
+
+    const tomlRes = await page.request.get("/calibration/venue_toml");
+    expect(tomlRes.ok()).toBeTruthy();
+    const { toml } = (await tomlRes.json()) as { toml: string };
+    expect(toml).toContain("[[anchors]]");
+    expect(toml).toContain("[home]");
+
+    await page.getByRole("button", { name: "Export venue TOML" }).click();
+  });
+
+  test("venue TOML round-trip preserves anchors and classify", async ({ page }) => {
+    const venueBefore = await page.request.get("/venue");
+    expect(venueBefore.ok()).toBeTruthy();
+    const { classify: classifyBefore, venue: venueBeforeData } = (await venueBefore.json()) as {
+      classify: string;
+      venue: { anchors: unknown[] };
+    };
+    expect(venueBeforeData.anchors).toHaveLength(4);
+
+    const tomlRes = await page.request.get("/venue/toml");
+    expect(tomlRes.ok()).toBeTruthy();
+    const { toml } = (await tomlRes.json()) as { toml: string };
+
+    await page.locator("label", { hasText: "Preset type" }).locator("..").locator("select").selectOption("polygon");
+    await page.getByRole("button", { name: "Apply preset" }).click();
+    await expect(page.getByText("Anchor 6", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    await page.locator('input[type="file"][accept*="toml"]').setInputFiles({
+      name: "venue.toml",
+      mimeType: "text/plain",
+      buffer: Buffer.from(toml),
+    });
+
+    await expect(page.getByText("Anchor 4", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Anchor 6", { exact: true })).toHaveCount(0);
+
+    const venueAfter = await page.request.get("/venue");
+    expect(venueAfter.ok()).toBeTruthy();
+    const { classify: classifyAfter, venue: venueAfterData } = (await venueAfter.json()) as {
+      classify: string;
+      venue: { anchors: unknown[] };
+    };
+    expect(venueAfterData.anchors).toHaveLength(4);
+    expect(classifyAfter).toBe(classifyBefore);
+  });
 });

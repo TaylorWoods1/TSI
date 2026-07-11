@@ -15,6 +15,7 @@ export default defineConfig({
       "/workspace": "http://127.0.0.1:7700",
       "/traj": "http://127.0.0.1:7700",
       "/scene": "http://127.0.0.1:7700",
+      "/calibration": "http://127.0.0.1:7700",
       "/run": "http://127.0.0.1:7700",
     },
   },

@@ -4,7 +4,7 @@ Native desktop wrapper around the same **Design → Simulate → Run** web GUI. 
 
 ## Prerequisites
 
-- Rust **1.85+** (pinned in repo root `rust-toolchain.toml`; shared by `spyder-gui` and Tauri shell)
+- Rust **1.88** (pinned in repo root `rust-toolchain.toml`; shared by `spyder-gui` and Tauri shell)
 - Node.js 20+
 - Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libudev-dev`, `pkg-config`
 - Built backend: `cargo build -p spyder-gui`

@@ -64,6 +64,9 @@ jobs:
           workspaces: |
             apps/spyder-tauri/src-tauri -> target
             . -> target
+      - name: Stage spyder-gui sidecar
+        working-directory: apps/spyder-tauri
+        run: bash scripts/prepare-sidecar.sh debug
       - name: Check Tauri shell
         working-directory: apps/spyder-tauri/src-tauri
         run: cargo check

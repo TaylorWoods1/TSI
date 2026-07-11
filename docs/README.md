@@ -34,6 +34,7 @@ Historical specs and implementation plans (may lag `main` — check README for s
 - `superpowers/specs/2026-07-10-spyder-ik-design.md` — core IK/FK design
 - `superpowers/specs/2026-07-10-spyder-gui-design.md` — GUI design (MVP shipped; see MVP table in spec)
 - `superpowers/plans/` — phase-1 and GUI implementation plans
+- `superpowers/plans/2026-07-11-spyder-polish-handoff.md` — **current** polish/hardening handoff (phases A–D)
 
 ## Testing
 

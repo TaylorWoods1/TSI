@@ -18,12 +18,14 @@
 
 ## Next (optional polish)
 
+See **[2026-07-11-spyder-polish-handoff.md](2026-07-11-spyder-polish-handoff.md)** for phased tasks (A–D), checklists, and copy-paste prompts for new chats.
+
 | Priority | Item |
 |----------|------|
-| Desktop | Bundle `spyder-gui` binary in Tauri release; tray icon; single-instance lock |
-| UX | TransformControls rotation gizmo; waypoint drag-reorder |
-| Field | E2E against live `spyder-stepper-sim` TCP in CI (optional) |
-| Ops | GitHub rename `TSI` → `spyder` (admin UI), if desired |
+| **Phase A** | Vite `/calibration` proxy, doc hygiene, clippy CI |
+| **Phase B** | Tauri `cargo check` in CI, calibration + TOML E2E |
+| **Phase C** | Bundle `spyder-gui`, single-instance, Tauri release |
+| **Phase D** | TCP sim CI, UX polish, Python TOML, firmware README |
 
 Specs: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md`  
 Archive: `docs/superpowers/plans/2026-07-10-spyder-full-configurator.md` (completed)

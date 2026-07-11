@@ -117,3 +117,19 @@ jobs:
           source .venv/bin/activate
           pip install pytest
           pytest tests/ -q
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL -o arduino-cli.tar.gz \
+            https://github.com/arduino/arduino-cli/releases/download/v1.2.2/arduino-cli_1.2.2_Linux_64bit.tar.gz
+          tar xf arduino-cli.tar.gz
+          sudo mv arduino-cli /usr/local/bin/
+      - name: Compile stepper sketch
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli compile --fqbn arduino:avr:uno firmware/spyder_stepper

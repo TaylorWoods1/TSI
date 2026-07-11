@@ -14,6 +14,7 @@ pyo3 = { version = "0.20", features = ["extension-module"] }
 spyder-core = { path = "../crates/spyder-core" }
 spyder-cables = { path = "../crates/spyder-cables" }
 spyder-sim = { path = "../crates/spyder-sim" }
+spyder-cli = { path = "../crates/spyder-cli" }
 nalgebra = "0.33"
 
 # Standalone from the root Cargo workspace (built via maturin).

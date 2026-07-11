@@ -10,8 +10,10 @@ use nalgebra::DVector;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use spyder_cables::Sag;
+use spyder_cli::robot_from_toml;
 use spyder_core::{CableModelKind, Pose, Preset, Robot, Vec3};
 use spyder_sim::{line_waypoints, sample_wrench_feasible, SampleBox};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 fn to_py<E: std::fmt::Display>(e: E) -> PyErr {
     PyValueError::new_err(e.to_string())
@@ -44,6 +46,15 @@ impl PyRobot {
     fn polygon(n: usize, radius: f64, height: f64) -> PyResult<Self> {
         let inner =
             Robot::from_preset(Preset::RegularPolygon { n, radius, height }).map_err(to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Load a robot from venue TOML (rect/polygon preset or explicit `[[anchors]]`).
+    #[staticmethod]
+    fn from_toml(toml: &str) -> PyResult<Self> {
+        let text = toml.to_string();
+        let inner = catch_unwind(AssertUnwindSafe(|| robot_from_toml(&text)))
+            .map_err(|_| PyValueError::new_err("invalid venue TOML"))?;
         Ok(Self { inner })
     }
 

@@ -29,7 +29,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cargo run -p spyder-gui",
+      command: "bash e2e/start-gui-with-sim.sh",
       url: "http://127.0.0.1:7700/health",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

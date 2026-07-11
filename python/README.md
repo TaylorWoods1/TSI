@@ -35,6 +35,7 @@ frac = r.workspace_fraction(-2, 2, -2, 2, 0.5, 4, 5, 5, 4)
 |--------|-------------|
 | `Robot.rect(width, depth, height)` | 4-corner rectangle preset |
 | `Robot.polygon(n, radius, height)` | Regular n-gon preset |
+| `Robot.from_toml(toml)` | Load rect/polygon preset or explicit `[[anchors]]` |
 | `ik(x, y, z)` | Cable lengths (m) |
 | `ik_tensions(x, y, z, mg=9.81)` | Lengths + tensions under gravity |
 | `ik_with_wrench(x, y, z, mg, f_min, f_max)` | Tuple `(lengths, tensions)` |

@@ -63,3 +63,36 @@ def test_ik_tensions_positive():
     t = r.ik_tensions(0, 0, 2)
     assert len(t) == 4
     assert all(x > 0 for x in t)
+
+
+def test_from_toml_rect_preset():
+    toml = """
+preset = "rect"
+width = 10.0
+depth = 6.0
+height = 8.0
+point_mass = true
+"""
+    r = Robot.from_toml(toml)
+    assert len(r.ik(0, 0, 2)) == 4
+    assert r.classify() == "RRPM"
+
+
+def test_from_toml_explicit_anchors():
+    toml = """
+point_mass = true
+[[anchors]]
+x = 5.0
+y = 3.0
+z = 8.0
+[[anchors]]
+x = -5.0
+y = 3.0
+z = 8.0
+[[anchors]]
+x = -5.0
+y = -3.0
+z = 8.0
+"""
+    r = Robot.from_toml(toml)
+    assert len(r.ik(0, 0, 2)) == 3

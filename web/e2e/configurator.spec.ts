@@ -106,4 +106,16 @@ test.describe("Spyder configurator", () => {
     expect(venueAfterData.anchors).toHaveLength(4);
     expect(classifyAfter).toBe(classifyBefore);
   });
+
+  test("stepper TCP sim connect and home", async ({ page }) => {
+    await page.getByRole("button", { name: "Run" }).click();
+    await page.locator("label", { hasText: "Backend" }).locator("..").locator("select").selectOption("stepper");
+    await page.locator("label", { hasText: "Device" }).locator("..").locator("input").fill("127.0.0.1:9002");
+    await page.getByRole("button", { name: "Connect" }).click();
+    await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect(page.getByText(/stepper.*estop:/i)).toBeVisible({ timeout: 10_000 });
+  });
 });

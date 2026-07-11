@@ -37,6 +37,7 @@ export default function RunPage() {
   const [error, setError] = useState<string | null>(null);
   const [safetyText, setSafetyText] = useState("—");
   const [playReadout, setPlayReadout] = useState("");
+  const [waypointDuration, setWaypointDuration] = useState(2.0);
   const [waypoints, setWaypoints] = useState<[number, number, number][]>([]);
 
   useEffect(() => {
@@ -161,7 +162,7 @@ export default function RunPage() {
       setError(null);
       const res = await api.runPlayWaypoints({
         waypoints,
-        duration_s: 2.0,
+        duration_s: waypointDuration,
         closed_loop: closedLoop,
         realtime: realtime,
       });
@@ -352,6 +353,18 @@ export default function RunPage() {
         >
           Play waypoints
         </button>
+
+        <div className="field">
+          <label>Waypoint duration (s)</label>
+          <input
+            type="number"
+            step="0.1"
+            min={0.1}
+            value={waypointDuration}
+            onChange={(e) => setWaypointDuration(parseFloat(e.target.value) || 2.0)}
+            disabled={!connected}
+          />
+        </div>
 
         <label className="checkbox-row">
           <input

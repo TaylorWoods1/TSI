@@ -78,11 +78,11 @@ z = 2.0
 | Backend | Connect params |
 |---------|----------------|
 | `mock` | No device |
-| `stepper` | TCP `host:port` (e.g. `127.0.0.1:8080` for stepper sim) |
-| `odrive` | Use CLI for serial; GUI shows guidance |
-| `multiboard` | Axis-map JSON (dry-run mock fan-out) |
+| `stepper` | Serial path (`/dev/ttyUSB0`) or TCP `host:port` |
+| `odrive` | Serial or TCP; enters closed-loop on connect |
+| `multiboard` | `axis_map` JSON (`{ "cables": [{ device, baud, axis, steps_per_rev }] }`); optional **Mock hardware** dry-run |
 
-Always **Connect** explicitly before Play. **E-stop** latches until cleared. Status bar shows model, classify, backend, FK residual.
+Always **Connect** explicitly before Play. Calibration **home lengths** apply automatically on connect. **Play waypoints** replays the Simulate trajectory. **E-stop** latches until cleared. Status bar shows model, classify, backend, FK residual.
 
 ### Stepper TCP example
 
@@ -92,8 +92,32 @@ cargo run -p spyder-stepper-sim
 
 # terminal B — GUI
 cargo run -p spyder-gui
-# Run tab → backend stepper → device 127.0.0.1:8080 → Connect
+# Run tab → backend stepper → device 127.0.0.1:5555 → Connect
 ```
+
+### Multiboard axis map example
+
+```json
+{
+  "cables": [
+    { "device": "/dev/ttyACM0", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM0", "baud": 115200, "axis": 1, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM1", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM1", "baud": 115200, "axis": 1, "steps_per_rev": 200 }
+  ]
+}
+```
+
+Enable **Mock hardware** to dry-run without opening serial ports.
+
+## Motor mapping (Design tab)
+
+Per-cable **drum radius** and **steps/rev** feed IK motor-command readouts (Simulate) and Run playback axes.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/venue/motors` | Current per-cable mapping |
+| POST | `/venue/motors` | Replace mapping (`{ "axes": [{ drum_radius_m, steps_per_rev }] }`) |
 
 ## HTTP API (highlights)
 
@@ -101,12 +125,18 @@ cargo run -p spyder-gui
 |--------|------|---------|
 | GET | `/venue` | Current venue + classify |
 | POST | `/venue/home` | Set home pose |
+| GET/POST | `/venue/motors` | Per-cable drum/steps mapping |
 | POST | `/traj/waypoints` | IK along waypoint list |
 | POST | `/scene/export` | Plotly HTML |
 | GET/POST | `/calibration/*` | Field-cal capture/apply |
-| POST | `/run/connect` | mock / stepper / multiboard |
+| POST | `/run/connect` | mock / stepper / odrive / multiboard |
+| POST | `/run/play_waypoints` | Play waypoint list on connected backend |
 
 Full table: `docs/superpowers/specs/2026-07-10-spyder-gui-design.md`
+
+## Desktop shell (planned)
+
+See [gui-tauri.md](gui-tauri.md) for the future Tauri wrapper stub.
 
 ## Testing
 

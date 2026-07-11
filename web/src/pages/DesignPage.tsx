@@ -75,12 +75,19 @@ export default function DesignPage() {
   const [drumRadius, setDrumRadius] = useState(0.05);
   const [stepsPerRev, setStepsPerRev] = useState(800);
   const [calAnchors, setCalAnchors] = useState<[number, number, number][]>([]);
+  const [motorAxes, setMotorAxes] = useState<api.MotorAxis[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const calFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (venue) setHomeDraft({ ...venue.home });
   }, [venue?.home.x, venue?.home.y, venue?.home.z]);
+
+  useEffect(() => {
+    api.getMotors()
+      .then((res) => setMotorAxes(res.axes))
+      .catch(() => {});
+  }, [venue?.anchors.length]);
 
   useEffect(() => {
     api.getCalibration()
@@ -240,6 +247,21 @@ export default function DesignPage() {
       const res = await api.loadVenue(text);
       applyVenueResponse(res);
       setDolly(res.venue.home);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const saveMotorMapping = async () => {
+    if (!venue) return;
+    try {
+      setError(null);
+      const axes = venue.anchors.map((_, i) => ({
+        drum_radius_m: motorAxes[i]?.drum_radius_m ?? 0.05,
+        steps_per_rev: motorAxes[i]?.steps_per_rev ?? 200,
+      }));
+      const res = await api.setMotors(axes);
+      setMotorAxes(res.axes);
     } catch (e) {
       setError(String(e));
     }
@@ -676,6 +698,66 @@ export default function DesignPage() {
             );
           })}
         </div>
+
+        <Collapsible title="Motor mapping (per cable)">
+          {venue?.anchors.map((_, i) => {
+            const m = motorAxes[i] ?? { drum_radius_m: 0.05, steps_per_rev: 200 };
+            return (
+              <div key={i} className="anchor-card">
+                <strong>Cable {i + 1}</strong>
+                <div className="field-row">
+                  <div className="field">
+                    <label>Drum radius (m)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min={0.001}
+                      value={m.drum_radius_m}
+                      onChange={(e) => {
+                        const next = [...motorAxes];
+                        while (next.length <= i) {
+                          next.push({ drum_radius_m: 0.05, steps_per_rev: 200 });
+                        }
+                        next[i] = {
+                          ...next[i],
+                          drum_radius_m: parseFloat(e.target.value) || 0.05,
+                        };
+                        setMotorAxes(next);
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Steps / rev</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min={1}
+                      value={m.steps_per_rev}
+                      onChange={(e) => {
+                        const next = [...motorAxes];
+                        while (next.length <= i) {
+                          next.push({ drum_radius_m: 0.05, steps_per_rev: 200 });
+                        }
+                        next[i] = {
+                          ...next[i],
+                          steps_per_rev: parseInt(e.target.value, 10) || 200,
+                        };
+                        setMotorAxes(next);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void saveMotorMapping()}
+          >
+            Save motor mapping
+          </button>
+        </Collapsible>
 
         <Collapsible title="Field calibration">
           <div className="field-row">

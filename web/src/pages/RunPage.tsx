@@ -3,12 +3,14 @@ import * as api from "../api/client";
 import { useApp } from "../context";
 import RobotScene, { type SceneData } from "../scene/RobotScene";
 
-const DEFAULT_AXIS_MAP = `[
-  { "board": 0, "motor": 0, "cable": 0 },
-  { "board": 0, "motor": 1, "cable": 1 },
-  { "board": 1, "motor": 0, "cable": 2 },
-  { "board": 1, "motor": 1, "cable": 3 }
-]`;
+const DEFAULT_AXIS_MAP = `{
+  "cables": [
+    { "device": "/dev/ttyACM0", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM0", "baud": 115200, "axis": 1, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM1", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+    { "device": "/dev/ttyACM1", "baud": 115200, "axis": 1, "steps_per_rev": 200 }
+  ]
+}`;
 
 export default function RunPage() {
   const {
@@ -26,6 +28,7 @@ export default function RunPage() {
   const [device, setDevice] = useState("127.0.0.1:5555");
   const [baud, setBaud] = useState(115200);
   const [axisMapText, setAxisMapText] = useState(DEFAULT_AXIS_MAP);
+  const [multiboardMock, setMultiboardMock] = useState(true);
   const [connected, setConnected] = useState(false);
   const [estopped, setEstopped] = useState(false);
   const [statusText, setStatusText] = useState("disconnected");
@@ -34,6 +37,18 @@ export default function RunPage() {
   const [error, setError] = useState<string | null>(null);
   const [safetyText, setSafetyText] = useState("—");
   const [playReadout, setPlayReadout] = useState("");
+  const [waypoints, setWaypoints] = useState<[number, number, number][]>([]);
+
+  useEffect(() => {
+    void api
+      .trajLine({
+        start: traj.start,
+        end: traj.end,
+        segments: traj.segments,
+      })
+      .then((res) => setWaypoints(res.waypoints))
+      .catch(() => {});
+  }, [traj.start, traj.end, traj.segments]);
 
   useEffect(() => {
     if (!connected) return;
@@ -83,8 +98,7 @@ export default function RunPage() {
         body.baud = baud;
       } else if (backend === "multiboard") {
         body.axis_map = parseAxisMap();
-      } else if (device) {
-        body.device = device;
+        body.mock = multiboardMock;
       }
       await api.runConnect(body);
       setConnected(true);
@@ -138,6 +152,30 @@ export default function RunPage() {
     }
   };
 
+  const playWaypoints = async () => {
+    if (waypoints.length < 2) {
+      setError("Plan a trajectory on Simulate first (need ≥2 waypoints)");
+      return;
+    }
+    try {
+      setError(null);
+      const res = await api.runPlayWaypoints({
+        waypoints,
+        duration_s: 2.0,
+        closed_loop: closedLoop,
+        realtime: realtime,
+      });
+      const poseStr = res.feedback_pose
+        ? `\nfeedback: [${res.feedback_pose.map((v) => v.toFixed(3)).join(", ")}]`
+        : "";
+      setPlayReadout(
+        `waypoints play — final_steps: [${res.final_steps.join(", ")}]${poseStr}`,
+      );
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const triggerEstop = async () => {
     try {
       setError(null);
@@ -166,7 +204,7 @@ export default function RunPage() {
     model: venue?.model,
   };
 
-  const needsDevice = backend === "stepper" || backend === "odrive" || backend === "mock";
+  const needsDevice = backend === "stepper" || backend === "odrive";
   const needsBaud = backend === "stepper" || backend === "odrive";
   const needsAxisMap = backend === "multiboard";
 
@@ -250,25 +288,36 @@ export default function RunPage() {
         )}
 
         {needsAxisMap && (
-          <div className="field">
-            <label>axis_map JSON</label>
-            <textarea
-              value={axisMapText}
-              onChange={(e) => setAxisMapText(e.target.value)}
-              disabled={connected}
-              rows={6}
-              style={{
-                background: "var(--bg-deep)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.72rem",
-                padding: "0.4rem",
-                borderRadius: 4,
-                resize: "vertical",
-              }}
-            />
-          </div>
+          <>
+            <div className="field">
+              <label>axis_map JSON</label>
+              <textarea
+                value={axisMapText}
+                onChange={(e) => setAxisMapText(e.target.value)}
+                disabled={connected}
+                rows={8}
+                style={{
+                  background: "var(--bg-deep)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.72rem",
+                  padding: "0.4rem",
+                  borderRadius: 4,
+                  resize: "vertical",
+                }}
+              />
+            </div>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={multiboardMock}
+                onChange={(e) => setMultiboardMock(e.target.checked)}
+                disabled={connected}
+              />
+              Mock hardware (dry-run)
+            </label>
+          </>
         )}
 
         <button
@@ -294,6 +343,14 @@ export default function RunPage() {
           onClick={() => void playLine()}
         >
           Play line
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!connected || estopped || waypoints.length < 2}
+          onClick={() => void playWaypoints()}
+        >
+          Play waypoints
         </button>
 
         <label className="checkbox-row">
@@ -352,9 +409,9 @@ export default function RunPage() {
 
         <div className="readout" style={{ fontSize: "0.68rem" }}>
           Trajectory: [{traj.start.join(", ")}] → [{traj.end.join(", ")}] · {traj.segments}{" "}
-          segments
+          segments · {waypoints.length} waypoints
           <br />
-          Configure start/end on Simulate tab.
+          Configure start/end on Simulate tab. Calibration home lengths apply on connect.
         </div>
 
         {error && (

@@ -136,10 +136,21 @@ export default function SimulatePage() {
   const [jacRows, setJacRows] = useState<number[][]>([]);
   const [feasibleOk, setFeasibleOk] = useState<boolean | null>(null);
   const [currentLengths, setCurrentLengths] = useState<number[]>([]);
+  const [referenceLengths, setReferenceLengths] = useState<number[]>([]);
 
   const frameRef = useRef(0);
   const animRef = useRef<number | null>(null);
   const analysisTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    api.getCalibration()
+      .then((cal) => {
+        if (cal.home_lengths_m.length > 0) {
+          setReferenceLengths(cal.home_lengths_m);
+        }
+      })
+      .catch(() => {});
+  }, [venue?.anchors.length]);
 
   const refreshAnalysis = useCallback(async () => {
     if (!venue) return;
@@ -150,6 +161,10 @@ export default function SimulatePage() {
       const ik = await api.ik(xyz, {
         mg: venue.model === "sag" || wsCfg.mg > 0 ? wsCfg.mg : undefined,
         model: venue.model,
+        reference_lengths:
+          referenceLengths.length === venue.anchors.length
+            ? referenceLengths
+            : undefined,
       });
       setCurrentLengths(ik.lengths);
       const tensionStr = ik.tensions
@@ -160,8 +175,11 @@ export default function SimulatePage() {
             .map((u) => (u == null ? "—" : u.toFixed(3)))
             .join(", ")} m`
         : "";
+      const motorStr = ik.motor_commands
+        ? `\nmotor steps: ${ik.motor_commands.map((c) => c.steps).join(", ")}`
+        : "";
       setIkText(
-        `lengths: ${ik.lengths.map((l) => l.toFixed(3)).join(", ")} m${tensionStr}${unstrainedStr}`,
+        `lengths: ${ik.lengths.map((l) => l.toFixed(3)).join(", ")} m${tensionStr}${unstrainedStr}${motorStr}`,
       );
 
       const fk = await api.fk(ik.lengths, xyz, {
@@ -186,7 +204,7 @@ export default function SimulatePage() {
     } catch (e) {
       setError(String(e));
     }
-  }, [venue, dolly, orientationRv, wsCfg, setFkResidual]);
+  }, [venue, dolly, orientationRv, wsCfg, setFkResidual, referenceLengths]);
 
   useEffect(() => {
     if (analysisTimer.current) clearTimeout(analysisTimer.current);

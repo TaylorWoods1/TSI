@@ -83,13 +83,15 @@ pub async fn set_anchors(
     if req.anchors.len() < 3 {
         return Err("need at least 3 anchors".into());
     }
+    let robot_guard = state.robot.lock().await;
     let params = model_params_from_request(
-        &cable_model_params(&state.robot.lock().await),
+        &cable_model_params(&robot_guard),
         req.model.as_deref(),
         req.pulley_radius,
         req.sag_mu,
         req.sag_ea,
     );
+    drop(robot_guard);
     let anchors: Vec<Anchor> = req
         .anchors
         .iter()

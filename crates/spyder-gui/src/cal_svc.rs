@@ -1,6 +1,6 @@
 //! Field calibration service wrappers.
 
-use spyder_core::{Pose, Robot, Vec3};
+use spyder_core::Vec3;
 use spyder_runtime::{apply_anchor_override, Calibration};
 
 use crate::dto::{

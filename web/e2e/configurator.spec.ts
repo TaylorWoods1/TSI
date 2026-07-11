@@ -36,4 +36,20 @@ test.describe("Spyder configurator", () => {
     await page.getByRole("button", { name: "E-STOP" }).click();
     await expect(page.getByText("E-STOP ACTIVE")).toBeVisible();
   });
+
+  test("motor mapping panel saves per-cable axes", async ({ page }) => {
+    await page.locator("summary", { hasText: "Motor mapping (per cable)" }).click();
+    await page.getByRole("button", { name: "Save motor mapping" }).click();
+    await expect(page.getByText("Cable 1")).toBeVisible();
+  });
+
+  test("multiboard mock connect", async ({ page }) => {
+    await page.getByRole("button", { name: "Run" }).click();
+    await page.locator("label", { hasText: "Backend" }).locator("..").locator("select").selectOption("multiboard");
+    await expect(page.getByText("Mock hardware (dry-run)")).toBeVisible();
+    await page.getByRole("button", { name: "Connect" }).click();
+    await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible({
+      timeout: 10_000,
+    });
+  });
 });

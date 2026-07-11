@@ -132,18 +132,42 @@ export async function getToml() {
   return request<{ toml: string }>("/venue/toml");
 }
 
+export type MotorAxis = { drum_radius_m: number; steps_per_rev: number };
+
+export async function getMotors() {
+  return request<{ axes: MotorAxis[] }>("/venue/motors");
+}
+
+export async function setMotors(axes: MotorAxis[]) {
+  return request<{ axes: MotorAxis[] }>("/venue/motors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ axes }),
+  });
+}
+
 export async function ik(
   xyz: [number, number, number],
-  options?: { mg?: number; model?: string },
+  options?: {
+    mg?: number;
+    model?: string;
+    reference_lengths?: number[];
+  },
 ) {
   return request<{
     lengths: number[];
     tensions?: number[];
     unstrained_lengths?: (number | null)[];
+    motor_commands?: { winch_radians: number; steps: number; steps_exact: number }[];
   }>("/ik", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xyz, mg: options?.mg, model: options?.model }),
+    body: JSON.stringify({
+      xyz,
+      mg: options?.mg,
+      model: options?.model,
+      reference_lengths: options?.reference_lengths,
+    }),
   });
 }
 
@@ -247,6 +271,7 @@ export async function runConnect(body: {
   device?: string;
   baud?: number;
   axis_map?: object;
+  mock?: boolean;
 }) {
   return request<{ ok: boolean; axes: number }>("/run/connect", {
     method: "POST",
@@ -266,6 +291,22 @@ export async function runHome() {
 export async function runPlayLine(body: object) {
   return request<{ final_steps: number[]; feedback_pose?: [number, number, number] }>(
     "/run/play_line",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function runPlayWaypoints(body: {
+  waypoints: [number, number, number][];
+  duration_s: number;
+  closed_loop: boolean;
+  realtime: boolean;
+}) {
+  return request<{ final_steps: number[]; feedback_pose?: [number, number, number] }>(
+    "/run/play_waypoints",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

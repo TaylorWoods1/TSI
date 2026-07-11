@@ -29,22 +29,57 @@ fn model_params_for_ik(robot: &Robot, req: &IkRequest) -> CableModelParams {
 }
 
 /// Inverse kinematics at a pose.
-pub fn ik(robot: &Robot, req: &IkRequest) -> Result<IkResponse, String> {
+pub fn ik(
+    robot: &Robot,
+    req: &IkRequest,
+    motor_axes: &[crate::dto::MotorAxisDto],
+    reference_lengths: Option<&[f64]>,
+) -> Result<IkResponse, String> {
     let mut robot = robot.clone();
     let params = model_params_for_ik(&robot, req);
     apply_cable_model(&mut robot, &params)?;
     let pose = Pose::from_position(Vec3::new(req.xyz[0], req.xyz[1], req.xyz[2]));
     let needs_wrench = params.model == "sag" || req.mg.is_some();
-    let result = if needs_wrench {
+
+    let refs = req
+        .reference_lengths
+        .clone()
+        .or_else(|| reference_lengths.map(|r| r.to_vec()));
+
+    let mut opts = spyder_core::IkOptions::with_defaults();
+    if needs_wrench {
         let mg = req.mg.unwrap_or(50.0);
-        let mut opts = spyder_core::IkOptions::with_defaults();
         opts.wrench = Some(DVector::from_vec(vec![0.0, 0.0, -mg]));
         opts.f_min = 0.5;
         opts.f_max = 500.0;
-        robot.ik_with_options(&pose, &opts).map_err(|e| e.to_string())?
+    }
+    if let Some(ref lens) = refs {
+        if lens.len() == robot.anchors.len() {
+            opts.reference_lengths = Some(lens.clone());
+            let axes = crate::motor_svc::axes_from_state(motor_axes, robot.anchors.len())?;
+            opts.winches = Some(axes.iter().map(|a| a.winch.clone()).collect());
+            opts.motors = Some(axes.iter().map(|a| a.motor.clone()).collect());
+        }
+    }
+
+    let result = if needs_wrench || opts.reference_lengths.is_some() {
+        robot
+            .ik_with_options(&pose, &opts)
+            .map_err(|e| e.to_string())?
     } else {
         robot.ik(&pose).map_err(|e| e.to_string())?
     };
+
+    let motor_commands = result.motor_commands.map(|cmds| {
+        cmds.into_iter()
+            .map(|c| crate::dto::MotorCommandDto {
+                winch_radians: c.winch_radians,
+                steps: c.steps,
+                steps_exact: c.steps_exact,
+            })
+            .collect()
+    });
+
     Ok(IkResponse {
         lengths: result.lengths,
         tensions: result.tensions,
@@ -53,6 +88,7 @@ pub fn ik(robot: &Robot, req: &IkRequest) -> Result<IkResponse, String> {
         } else {
             None
         },
+        motor_commands,
     })
 }
 

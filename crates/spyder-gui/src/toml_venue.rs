@@ -1,7 +1,6 @@
 //! Venue TOML parse and emit helpers.
 
 use spyder_core::{Anchor, PlatformAttachment, Robot, Vec3};
-use spyder_runtime::venue_toml_from_anchors;
 
 use crate::state::CableModelParams;
 
@@ -292,54 +291,50 @@ pub fn emit_venue_toml(
     home: Vec3,
     model: &CableModelParams,
 ) -> Result<String, String> {
-    let anchors_m: Vec<[f64; 3]> = anchors
-        .iter()
-        .map(|a| [a.exit.x, a.exit.y, a.exit.z])
-        .collect();
-    let atts: Option<Vec<[f64; 3]>> = if attachments.is_empty() {
-        None
-    } else {
-        Some(
-            attachments
-                .iter()
-                .map(|a| [a.x, a.y, a.z])
-                .collect(),
-        )
-    };
-    let mut toml = venue_toml_from_anchors(
-        &anchors_m,
-        home,
-        point_mass,
-        atts.as_deref(),
-        model.pulley_radius,
-        model.sag_ea,
-    )
-    .map_err(|e| e.to_string())?;
-    // Per-anchor pulley overrides
+    let mut toml = String::new();
+    toml.push_str(&format!("point_mass = {}\n\n", point_mass));
+
     for (i, a) in anchors.iter().enumerate() {
-        if a.pulley_radius > 0.0 || a.pulley_axis.is_some() || a.pulley_winch_exit.is_some() || a.pulley_runout_m > 0.0 {
-            toml.push_str(&format!("\n# anchor {i} pulley geometry\n"));
-            if a.pulley_radius > 0.0 {
-                toml.push_str(&format!("# [[anchors]] index {i}\npulley_radius = {:.6}\n", a.pulley_radius));
-            }
-            if let Some(axis) = a.pulley_axis {
-                toml.push_str(&format!(
-                    "pulley_axis_x = {:.6}\npulley_axis_y = {:.6}\npulley_axis_z = {:.6}\n",
-                    axis.x, axis.y, axis.z
-                ));
-            }
-            if let Some(w) = a.pulley_winch_exit {
-                toml.push_str(&format!(
-                    "winch_x = {:.6}\nwinch_y = {:.6}\nwinch_z = {:.6}\n",
-                    w.x, w.y, w.z
-                ));
-            }
-            if a.pulley_runout_m > 0.0 {
-                toml.push_str(&format!("pulley_runout_m = {:.6}\n", a.pulley_runout_m));
-            }
+        toml.push_str("[[anchors]]\n");
+        toml.push_str(&format!("# cable {i}\n"));
+        toml.push_str(&format!("x = {:.6}\n", a.exit.x));
+        toml.push_str(&format!("y = {:.6}\n", a.exit.y));
+        toml.push_str(&format!("z = {:.6}\n", a.exit.z));
+        if a.pulley_radius > 0.0 {
+            toml.push_str(&format!("pulley_radius = {:.6}\n", a.pulley_radius));
         }
+        if let Some(axis) = a.pulley_axis {
+            toml.push_str(&format!(
+                "pulley_axis_x = {:.6}\npulley_axis_y = {:.6}\npulley_axis_z = {:.6}\n",
+                axis.x, axis.y, axis.z
+            ));
+        }
+        if let Some(w) = a.pulley_winch_exit {
+            toml.push_str(&format!(
+                "winch_x = {:.6}\nwinch_y = {:.6}\nwinch_z = {:.6}\n",
+                w.x, w.y, w.z
+            ));
+        }
+        if a.pulley_runout_m > 0.0 {
+            toml.push_str(&format!("pulley_runout_m = {:.6}\n", a.pulley_runout_m));
+        }
+        toml.push('\n');
     }
-    toml.push_str(&format!("\ncable_model = \"{}\"\n", model.model));
+
+    for (i, b) in attachments.iter().enumerate() {
+        toml.push_str("[[attachments]]\n");
+        toml.push_str(&format!("# body point {i}\n"));
+        toml.push_str(&format!("x = {:.6}\n", b.x));
+        toml.push_str(&format!("y = {:.6}\n", b.y));
+        toml.push_str(&format!("z = {:.6}\n\n", b.z));
+    }
+
+    toml.push_str("[home]\n");
+    toml.push_str(&format!("x = {:.6}\n", home.x));
+    toml.push_str(&format!("y = {:.6}\n", home.y));
+    toml.push_str(&format!("z = {:.6}\n\n", home.z));
+
+    toml.push_str(&format!("cable_model = \"{}\"\n", model.model));
     if model.model == "pulley" {
         toml.push_str(&format!("pulley_radius = {:.6}\n", model.pulley_radius));
     }

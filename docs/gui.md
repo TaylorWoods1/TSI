@@ -35,9 +35,9 @@ cd web && npm run dev
 
 | Tab | What it does |
 |-----|----------------|
-| **Design** | Rect/polygon presets, platform toggle, attachments, cable model, per-anchor pulley, home pose, field-cal, TOML |
-| **Simulate** | Pose scrubber, waypoint editor, IK/FK/Jacobian/feasible panels, workspace overlay, Plotly export |
-| **Run** | Mock / stepper TCP / multiboard connect, play line, E-stop, live 3D feedback |
+| **Design** | Rect/polygon presets, platform toggle, attachments, cable model, per-anchor pulley, home pose, motor mapping, field-cal, TOML |
+| **Simulate** | Pose scrubber, waypoint editor, IK/FK/Jacobian/feasible panels (incl. motor steps), workspace overlay, Plotly export |
+| **Run** | Mock / stepper / odrive / multiboard connect, play line & waypoints, E-stop, live 3D feedback |
 
 ## HTTP API
 
@@ -53,13 +53,14 @@ Base URL: `http://127.0.0.1:7700`
 | POST | `/venue/home` | Set home pose |
 | POST | `/venue/set_model` | Cable model + params |
 | GET | `/venue/toml` | Export current venue |
+| GET/POST | `/venue/motors` | Per-cable drum radius & steps/rev |
 | POST | `/ik`, `/fk`, `/jacobian`, `/feasible` | Kinematics / analysis |
 | POST | `/workspace` | Wrench-feasible samples |
 | POST | `/traj/line`, `/traj/waypoints` | Cartesian trajectories |
 | POST | `/scene/snapshot`, `/scene/export` | 3D scene JSON / Plotly HTML |
 | GET/POST | `/calibration/*` | Field calibration |
-| POST | `/run/connect` | Connect motor backend |
-| POST | `/run/play_line` | Play trajectory |
+| POST | `/run/connect` | Connect motor backend (serial/TCP/odrive/multiboard) |
+| POST | `/run/play_line`, `/run/play_waypoints` | Play trajectory |
 | POST | `/run/estop` | Latch e-stop |
 
 ### Smoke tests
@@ -79,7 +80,12 @@ cargo test -p spyder-gui
 cd web && npm test && npm run build && npm run e2e
 ```
 
-Playwright E2E covers rect preset, pulley model, simulate play, and mock e-stop.
+Playwright E2E covers rect preset, pulley model, simulate play, motor mapping, multiboard mock, and mock e-stop.
+
+## See also
+
+- [gui-configurator.md](gui-configurator.md) — full feature guide
+- [gui-tauri.md](gui-tauri.md) — planned desktop shell (stub)
 
 ## Code map
 

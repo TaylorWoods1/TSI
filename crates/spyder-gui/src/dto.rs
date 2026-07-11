@@ -220,6 +220,19 @@ pub struct IkRequest {
     /// Gravity magnitude for wrench (Newtons); required for sag model.
     #[serde(default)]
     pub mg: Option<f64>,
+    /// Reference cable lengths for motor command deltas (defaults to venue home IK).
+    #[serde(default)]
+    pub reference_lengths: Option<Vec<f64>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotorCommandDto {
+    /// Winch rotation (radians).
+    pub winch_radians: f64,
+    /// Motor steps (rounded).
+    pub steps: i64,
+    /// Exact steps before rounding.
+    pub steps_exact: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -232,6 +245,9 @@ pub struct IkResponse {
     /// Unstrained lengths (sag model).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unstrained_lengths: Option<Vec<Option<f64>>>,
+    /// Motor commands vs reference lengths when motor mapping is configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motor_commands: Option<Vec<MotorCommandDto>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -443,7 +459,7 @@ pub struct OkResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConnectRequest {
-    /// `mock`, `stepper`, `odrive`, or `multiboard` (GUI MVP: mock only).
+    /// `mock`, `stepper`, `odrive`, or `multiboard`.
     pub backend: String,
     /// Serial path or `host:port` (hardware backends).
     #[serde(default)]
@@ -454,6 +470,9 @@ pub struct ConnectRequest {
     /// Multi-board axis map JSON.
     #[serde(default)]
     pub axis_map: Option<serde_json::Value>,
+    /// Multiboard dry-run: mock fan-out instead of opening serial devices.
+    #[serde(default)]
+    pub mock: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -480,6 +499,27 @@ pub struct PlayLineRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayLineResponse {
+    /// Final motor step counts per axis.
+    pub final_steps: Vec<i64>,
+    /// FK pose from feedback steps, if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback_pose: Option<[f64; 3]>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlayWaypointsRequest {
+    /// Cartesian waypoints `[x, y, z]`.
+    pub waypoints: Vec<[f64; 3]>,
+    /// Total trajectory duration (seconds).
+    pub duration_s: f64,
+    /// Enable closed-loop correction after each segment.
+    pub closed_loop: bool,
+    /// Sleep for segment duration (wall-clock playback).
+    pub realtime: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlayWaypointsResponse {
     /// Final motor step counts per axis.
     pub final_steps: Vec<i64>,
     /// FK pose from feedback steps, if available.
@@ -571,6 +611,18 @@ pub struct MotorAxisDto {
     pub drum_radius_m: f64,
     /// Steps per revolution.
     pub steps_per_rev: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotorsResponse {
+    /// Per-cable motor mapping.
+    pub axes: Vec<MotorAxisDto>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SetMotorsRequest {
+    /// One entry per cable.
+    pub axes: Vec<MotorAxisDto>,
 }
 
 fn deserialize_anchors<'de, D>(deserializer: D) -> Result<Vec<AnchorDto>, D::Error>

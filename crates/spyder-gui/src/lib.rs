@@ -21,6 +21,10 @@ pub mod design;
 pub mod cal_svc;
 /// JSON request/response types for the REST API.
 pub mod dto;
+/// Hardware thread proxy for serial/TCP backends.
+pub mod hw_thread;
+/// Per-cable motor mapping.
+pub mod motor_svc;
 /// Mock motor run session and playback.
 pub mod run_svc;
 /// Simulation helpers (workspace, trajectory, scene).

@@ -15,6 +15,7 @@ use crate::cal_svc::{
 };
 use crate::design::{from_preset, get_venue, load_venue, set_anchors, set_cable_model, set_home, venue_toml};
 use crate::dto::*;
+use crate::motor_svc::{get_motors, set_motors};
 use crate::run_svc::RunSession;
 use crate::sim_svc::{
     feasible, fk, ik, jacobian, scene_export, scene_snapshot, traj_line, traj_waypoints, workspace,
@@ -29,7 +30,15 @@ async fn run_connect(
     let robot = state.robot.lock().await;
     let home = *state.home.lock().await;
     let n = robot.anchors.len();
-    let session = RunSession::connect(&robot, home, &req)?;
+    let motor_axes = state.motor_axes.lock().await.clone();
+    let calibration = state.calibration.lock().await.clone();
+    let session = RunSession::connect(
+        &robot,
+        home,
+        &req,
+        &motor_axes,
+        calibration.as_ref(),
+    )?;
     drop(robot);
     *state.run_session.lock().await = Some(session);
     Ok(Json(ConnectResponse { ok: true, axes: n }))
@@ -62,6 +71,16 @@ async fn run_play_line(
     let mut session = state.run_session.lock().await;
     let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
     Ok(Json(session.play_line(&robot, &req)?))
+}
+
+async fn run_play_waypoints(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PlayWaypointsRequest>,
+) -> Result<Json<PlayWaypointsResponse>, ApiError> {
+    let robot = state.robot.lock().await;
+    let mut session = state.run_session.lock().await;
+    let session = session.as_mut().ok_or_else(|| ApiError("not connected".into()))?;
+    Ok(Json(session.play_waypoints(&robot, &req)?))
 }
 
 async fn run_estop(State(state): State<Arc<AppState>>) -> Result<Json<OkResponse>, ApiError> {
@@ -106,6 +125,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/venue/set_model", post(venue_set_model))
         .route("/venue/home", post(venue_set_home))
         .route("/venue/toml", get(venue_toml_get))
+        .route("/venue/motors", get(venue_motors_get).post(venue_motors_set))
         .route("/ik", post(ik_route))
         .route("/fk", post(fk_route))
         .route("/jacobian", post(jacobian_route))
@@ -125,6 +145,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/run/disconnect", post(run_disconnect))
         .route("/run/home", post(run_home))
         .route("/run/play_line", post(run_play_line))
+        .route("/run/play_waypoints", post(run_play_waypoints))
         .route("/run/estop", post(run_estop))
         .route("/run/clear_estop", post(run_clear_estop))
         .route("/run/status", get(run_status))
@@ -183,12 +204,26 @@ async fn venue_toml_get(State(state): State<Arc<AppState>>) -> Result<Json<TomlR
     }))
 }
 
+async fn venue_motors_get(State(state): State<Arc<AppState>>) -> Json<MotorsResponse> {
+    Json(get_motors(&state).await)
+}
+
+async fn venue_motors_set(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SetMotorsRequest>,
+) -> Result<Json<MotorsResponse>, ApiError> {
+    Ok(Json(set_motors(&state, &req).await?))
+}
+
 async fn ik_route(
     State(state): State<Arc<AppState>>,
     Json(req): Json<IkRequest>,
 ) -> Result<Json<IkResponse>, ApiError> {
     let robot = state.robot.lock().await;
-    Ok(Json(ik(&robot, &req)?))
+    let motor_axes = state.motor_axes.lock().await.clone();
+    let cal = state.calibration.lock().await.clone();
+    let ref_lens = cal.as_ref().map(|c| c.home_lengths_m.as_slice());
+    Ok(Json(ik(&robot, &req, &motor_axes, ref_lens)?))
 }
 
 async fn fk_route(
@@ -552,5 +587,73 @@ mod tests {
         let v: TrajLineResponse = body_json(resp).await;
         assert_eq!(v.waypoints.len(), 5);
         assert_eq!(v.lengths.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn motors_round_trip() {
+        let app = router(AppState::new_rect());
+        let set_body = serde_json::json!({
+            "axes": [
+                { "drum_radius_m": 0.04, "steps_per_rev": 400.0 },
+                { "drum_radius_m": 0.04, "steps_per_rev": 400.0 },
+                { "drum_radius_m": 0.04, "steps_per_rev": 400.0 },
+                { "drum_radius_m": 0.04, "steps_per_rev": 400.0 }
+            ]
+        });
+        let resp = app
+            .clone()
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/venue/motors")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(set_body.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let get_resp = app
+            .oneshot(
+                http::Request::builder()
+                    .uri("/venue/motors")
+                    .body(http_body_util::Empty::<Bytes>::new())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let m: MotorsResponse = body_json(get_resp).await;
+        assert_eq!(m.axes.len(), 4);
+        assert!((m.axes[0].steps_per_rev - 400.0).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn multiboard_mock_connect() {
+        let state = AppState::new_rect();
+        let app = router(state);
+        let connect = serde_json::json!({
+            "backend": "multiboard",
+            "mock": true,
+            "axis_map": {
+                "cables": [
+                    { "device": "board-a", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+                    { "device": "board-a", "baud": 115200, "axis": 1, "steps_per_rev": 200 },
+                    { "device": "board-b", "baud": 115200, "axis": 0, "steps_per_rev": 200 },
+                    { "device": "board-b", "baud": 115200, "axis": 1, "steps_per_rev": 200 }
+                ]
+            }
+        });
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/run/connect")
+                    .header("content-type", "application/json")
+                    .body(http_body_util::Full::new(Bytes::from(connect.to_string())))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
     }
 }
